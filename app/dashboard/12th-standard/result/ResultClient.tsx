@@ -196,7 +196,7 @@ export default function TwelfthStandardResultClient() {
           <Button onClick={() => router.push('/dashboard/12th-standard/test')} variant="outline" size="lg">
             Retake Test
           </Button>
-          <Button onClick={() => router.push('/dashboard')} size="lg" className="bg-green-600 hover:bg-green-700">
+          <Button onClick={() => router.push('/my-dashboard')} size="lg" className="bg-green-600 hover:bg-green-700">
             Back to Dashboard
           </Button>
         </div>

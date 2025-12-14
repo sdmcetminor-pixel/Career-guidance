@@ -266,7 +266,7 @@ const SharedProfileTest: FC<SharedProps> = ({ title, headerColorClass = 'bg-indi
         </div>
 
         <div className="mt-4 flex gap-4 justify-center">
-          <button onClick={() => (window.location.href = '/dashboard')} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition shadow-md">Dashboard</button>
+          <button onClick={() => (window.location.href = '/my-dashboard')} className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition shadow-md">Dashboard</button>
         </div>
       </div>
     )

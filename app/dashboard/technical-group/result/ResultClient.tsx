@@ -360,7 +360,7 @@ export default function TechnicalGroupResultClient() {
         })()}
 
         <div className="mt-6 flex justify-center">
-          <Button onClick={() => router.push('/dashboard')} size="lg" className="bg-purple-600 hover:bg-purple-700">
+          <Button onClick={() => router.push('/my-dashboard')} size="lg" className="bg-purple-600 hover:bg-purple-700">
             Back to Dashboard
           </Button>
         </div>

@@ -163,7 +163,7 @@ export default function TenthStandardResultClient() {
         </div>
 
         <div className="mt-6 flex justify-center">
-          <Button onClick={() => router.push('/dashboard')} size="lg">
+          <Button onClick={() => router.push('/my-dashboard')} size="lg">
             Back to Dashboard
           </Button>
         </div>

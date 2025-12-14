@@ -43,6 +43,7 @@ function PersonalizedAIRecommendation({
   aptitudeBreakdown: Record<string, number>
   profileBreakdown: Record<string, number>
 }) {
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [text, setText] = useState<string | null>(null)
@@ -187,6 +188,12 @@ function PersonalizedAIRecommendation({
                 </Button>
               </div>
             ) : null}
+
+            <div className="mt-4 flex justify-end">
+              <Button onClick={() => router.push('/my-dashboard')}>
+                Dashboard
+              </Button>
+            </div>
           </>
         ) : null}
       </div>
