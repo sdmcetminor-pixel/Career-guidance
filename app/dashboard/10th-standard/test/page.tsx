@@ -226,11 +226,14 @@ export default function TenthStandardAssessment() {
   const { data: session } = useSession()
   const [selectedStandard, setSelectedStandard] = useState<string>('10th-standard')
   const [region, setRegion] = useState<string>('south')
+  const [assessmentId, setAssessmentId] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   const calculateAndSubmitScores = useCallback(
     async (timeExpired: boolean = false) => {
       setIsLoading(true)
       setStep(2)
+      setSaveError(null)
 
       const aptBreakdown: { [key: string]: number } = {}
       const correctCounts: { [key: string]: number } = {}
@@ -292,6 +295,40 @@ export default function TenthStandardAssessment() {
         timeExpired,
       }
 
+      // Persist attempt + marks to DB (Supabase/Postgres via Prisma)
+      try {
+        const res = await fetch('/api/assessments/10th/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            assessmentId: assessmentId || undefined,
+            standard: '10th-standard',
+            region: region === 'north' ? 'north' : 'south',
+            timeExpired,
+            aptitudeAnswers,
+            profileAnswers,
+          }),
+        })
+
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}))
+          const msg = typeof json?.error === 'string' ? json.error : 'Failed to save marks'
+          setSaveError(msg)
+        } else {
+          const json = await res.json().catch(() => ({}))
+          if (typeof json?.assessmentId === 'string') {
+            setAssessmentId(json.assessmentId)
+            try {
+              localStorage.setItem('latest10thAssessmentId', json.assessmentId)
+            } catch (e) {
+              // ignore
+            }
+          }
+        }
+      } catch (e: any) {
+        setSaveError(e?.message || 'Failed to save marks')
+      }
+
       localStorage.setItem(
         'careerProfile',
         JSON.stringify({ class: '10th-standard', stream: top.name, testCompleted: true }),
@@ -340,7 +377,7 @@ export default function TenthStandardAssessment() {
       setStep(3)
       setIsLoading(false)
     },
-    [aptitudeAnswers, profileAnswers],
+    [aptitudeAnswers, profileAnswers, assessmentId, region],
   )
 
   useEffect(() => {
@@ -351,10 +388,17 @@ export default function TenthStandardAssessment() {
         const parsed = JSON.parse(raw)
         if (parsed && parsed.class) setSelectedStandard(parsed.class)
       }
+
+      // Only prefill the last *saved* assessment id for display/fetching.
+      // Do not create a new id client-side; the server returns the real DB id.
+      const prior = localStorage.getItem('latest10thAssessmentId')
+      if (prior) setAssessmentId(prior)
     } catch (e) {
       // ignore parse errors
     }
+  }, [])
 
+  useEffect(() => {
     if (step === 0 || step === 2 || step === 3) return
 
     const timer = setInterval(() => {
@@ -371,7 +415,13 @@ export default function TenthStandardAssessment() {
     return () => clearInterval(timer)
   }, [step, calculateAndSubmitScores])
 
-  const handleAptitudeStart = () => setStep(0.5)
+  const handleAptitudeStart = () => {
+    // Start a fresh attempt. We intentionally DO NOT set an assessment id here.
+    // The DB id will be created on submit and returned by the API.
+    setAssessmentId(null)
+    setSaveError(null)
+    setStep(0.5)
+  }
 
   const handleAptitudeAnswerSelect = useCallback(
     (qId: string, answerIndex: number) => {
@@ -482,6 +532,7 @@ export default function TenthStandardAssessment() {
       : () => setCurrentQuestionIndex((prev) => prev + 1)
 
     const isNextDisabled = answers[qId] === undefined || timeLeft <= 0
+    const isSkipDisabled = timeLeft <= 0
 
     return (
       <div className="p-8 relative">
@@ -548,7 +599,7 @@ export default function TenthStandardAssessment() {
           </>
         )}
 
-        <div className="mt-8 flex justify-between">
+        <div className="mt-8 flex items-center justify-between">
           <button
             onClick={() => setCurrentQuestionIndex((prev) => Math.max(0, prev - 1))}
             disabled={currentQuestionIndex === 0 || timeLeft <= 0}
@@ -556,19 +607,29 @@ export default function TenthStandardAssessment() {
           >
             ← Previous
           </button>
-          <button
-            onClick={nextAction}
-            disabled={isNextDisabled}
-            className={`px-6 py-3 font-semibold rounded-lg transition duration-200 ${
-              isNextDisabled
-                ? 'bg-indigo-300 text-white'
-                : isFinalInSet && !isAptitude
-                ? 'bg-green-600 hover:bg-green-700 text-white'
-                : 'bg-indigo-500 hover:bg-indigo-600 text-white'
-            }`}
-          >
-            {isFinalInSet ? 'Final Submission' : 'Next Question →'}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={nextAction}
+              disabled={isNextDisabled}
+              className={`px-6 py-3 font-semibold rounded-lg transition duration-200 ${
+                isNextDisabled
+                  ? 'bg-indigo-300 text-white'
+                  : isFinalInSet && !isAptitude
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'bg-indigo-500 hover:bg-indigo-600 text-white'
+              }`}
+            >
+              {isFinalInSet ? 'Final Submission' : 'Next Question →'}
+            </button>
+
+            <button
+              onClick={nextAction}
+              disabled={isSkipDisabled}
+              className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 transition"
+            >
+              Skip →
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -591,6 +652,18 @@ export default function TenthStandardAssessment() {
     const { name, confidence, flexibility, aptitudeBreakdown, profileBreakdown, timeExpired } =
       finalScores
 
+    const aptitudeTotal = APTITUDE_QUESTIONS.length
+    const aptitudeAttempted = APTITUDE_QUESTIONS.reduce(
+      (acc, q) => acc + (aptitudeAnswers[q.id] === undefined ? 0 : 1),
+      0,
+    )
+    const aptitudeCorrect = APTITUDE_QUESTIONS.reduce(
+      (acc, q) => acc + (aptitudeAnswers[q.id] !== undefined && aptitudeAnswers[q.id] === q.answerIndex ? 1 : 0),
+      0,
+    )
+    const aptitudeSkipped = Math.max(0, aptitudeTotal - aptitudeAttempted)
+    const aptitudePercent = aptitudeTotal > 0 ? Math.round((aptitudeCorrect / aptitudeTotal) * 100) : 0
+
     const streamKey = name.toLowerCase().includes('science')
       ? 'science'
       : name.toLowerCase().includes('commerce')
@@ -608,6 +681,16 @@ export default function TenthStandardAssessment() {
           </div>
         )}
 
+        {saveError ? (
+          <div className="mb-4 p-3 bg-red-100 text-red-700 font-semibold rounded-lg">
+            ⚠️ Could not save marks to database: {saveError}
+          </div>
+        ) : assessmentId ? (
+          <div className="mb-4 p-3 bg-green-100 text-green-700 font-semibold rounded-lg">
+            ✅ Marks saved. Assessment ID: {assessmentId}
+          </div>
+        ) : null}
+
         <h3 className="text-3xl font-extrabold text-indigo-700 mb-4">
           Recommended Stream: {name.toUpperCase()}
         </h3>
@@ -618,6 +701,13 @@ export default function TenthStandardAssessment() {
             Confidence Score: <span className="font-bold text-green-600">{confidence}%</span>
           </p>
           <p className="text-lg text-gray-600">Flexibility Score: {flexibility}%</p>
+          <p className="text-lg text-gray-600">
+            Marks (Aptitude): <span className="font-bold text-indigo-700">{aptitudeCorrect}/{aptitudeTotal}</span>
+            <span className="text-gray-500"> ({aptitudePercent}%)</span>
+          </p>
+          <p className="text-sm text-gray-500">
+            Attempted: {aptitudeAttempted}/{aptitudeTotal} · Skipped: {aptitudeSkipped}
+          </p>
         </div>
 
         <div className="mb-4 mx-auto max-w-sm flex items-center justify-center gap-3">

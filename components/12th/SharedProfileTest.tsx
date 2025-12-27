@@ -62,6 +62,9 @@ const SharedProfileTest: FC<SharedProps> = ({ title, headerColorClass = 'bg-indi
   const [aiInsights, setAIInsights] = useState<any | null>(null)
   const [aiError, setAIError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<{ state: 'idle' | 'saving' | 'saved' | 'error'; message?: string; assessmentId?: string }>(
+    { state: 'idle' }
+  )
   // Timer for the quiz (15 minutes = 900 seconds)
   const QUIZ_DURATION_SECONDS = 15 * 60
   const [secondsLeft, setSecondsLeft] = useState<number>(QUIZ_DURATION_SECONDS)
@@ -69,12 +72,11 @@ const SharedProfileTest: FC<SharedProps> = ({ title, headerColorClass = 'bg-indi
   const totalQuestions = PROFILE_QUESTIONS.length
   const currentQuestion = useMemo(() => PROFILE_QUESTIONS[currentQIndex], [currentQIndex])
   const isLastQuestion = currentQIndex === totalQuestions - 1
-  const allQuestionsAnswered = useMemo(() => Object.values(answers).every(a => a !== -1), [answers])
   const labels = currentQuestion.factor === 'RIASEC' ? SCALES.Interest.labels : SCALES.Agreement.labels
 
   const handleSubmitTest = useCallback(async () => {
-    if (!allQuestionsAnswered) return
     setIsLoading(true)
+    setSaveStatus({ state: 'saving' })
     const normalizedScores = calculateNormalizedScores(answers)
     try {
       await new Promise(resolve => setTimeout(resolve, 1000))
@@ -123,13 +125,43 @@ const SharedProfileTest: FC<SharedProps> = ({ title, headerColorClass = 'bg-indi
         console.warn('Unable to persist careerProfile to localStorage', err)
       }
 
+      // Save to DB (Supabase via Prisma)
+      try {
+        const profileAnswers: Record<string, number | null> = {}
+        for (const q of PROFILE_QUESTIONS) {
+          const v = answers[q.id]
+          profileAnswers[q.id] = v === undefined || v === -1 ? null : v
+        }
+
+        const res = await fetch('/api/assessments/12th/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            standard: '12th-standard',
+            region: stream.toLowerCase(),
+            timeExpired: secondsLeft <= 0,
+            profileAnswers,
+          }),
+        })
+
+        if (res.ok) {
+          const json = await res.json()
+          setSaveStatus({ state: 'saved', assessmentId: json?.assessmentId, message: 'Marks saved.' })
+        } else {
+          const txt = await res.text().catch(() => '')
+          setSaveStatus({ state: 'error', message: txt || 'Failed to save marks.' })
+        }
+      } catch (e) {
+        setSaveStatus({ state: 'error', message: 'Network error saving marks.' })
+      }
+
       setIsSubmitted(true)
     } catch (err) {
       console.error(err)
     } finally {
       setIsLoading(false)
     }
-  }, [allQuestionsAnswered, answers, clusterWeights, stream, QUIZ_DURATION_SECONDS, secondsLeft])
+  }, [answers, clusterWeights, stream, QUIZ_DURATION_SECONDS, secondsLeft])
 
   useEffect(() => {
     // Start countdown timer when the quiz interface is active and not submitted
@@ -158,6 +190,15 @@ const SharedProfileTest: FC<SharedProps> = ({ title, headerColorClass = 'bg-indi
     const newIndex = currentQIndex + direction
     if (newIndex >= 0 && newIndex < totalQuestions) setCurrentQIndex(newIndex)
   }, [currentQIndex, totalQuestions])
+
+  const handleSkip = useCallback(() => {
+    if (isLoading) return
+    if (isLastQuestion) {
+      handleSubmitTest()
+      return
+    }
+    handleNavigation(1)
+  }, [isLastQuestion, isLoading, handleNavigation, handleSubmitTest])
 
   const renderInterface = () => (
     <div className="p-8 bg-white rounded-xl shadow-lg">
@@ -190,9 +231,14 @@ const SharedProfileTest: FC<SharedProps> = ({ title, headerColorClass = 'bg-indi
 
       <div className="mt-8 flex justify-between">
         <button onClick={() => handleNavigation(-1)} disabled={currentQIndex === 0 || isLoading} className="px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 disabled:opacity-50 transition shadow-md">&larr; Previous</button>
-        <button onClick={isLastQuestion ? handleSubmitTest : () => handleNavigation(1)} disabled={answers[currentQuestion.id] === -1 || isLoading} className={`px-8 py-3 font-bold rounded-lg transition duration-200 shadow-xl flex items-center ${answers[currentQuestion.id] === -1 ? 'bg-indigo-300 text-white cursor-not-allowed' : isLastQuestion ? `${buttonAccentClass} hover:opacity-90 text-white` : 'bg-green-600 hover:bg-green-700 text-white'}`}>
-          {isLoading ? 'Analyzing...' : (isLastQuestion ? 'Final Submission' : 'Next Question →')}
-        </button>
+        <div className="flex gap-3">
+          <button onClick={handleSkip} disabled={isLoading} className="px-6 py-3 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 disabled:opacity-50 transition shadow-md">
+            Skip
+          </button>
+          <button onClick={isLastQuestion ? handleSubmitTest : () => handleNavigation(1)} disabled={answers[currentQuestion.id] === -1 || isLoading} className={`px-8 py-3 font-bold rounded-lg transition duration-200 shadow-xl flex items-center ${answers[currentQuestion.id] === -1 ? 'bg-indigo-300 text-white cursor-not-allowed' : isLastQuestion ? `${buttonAccentClass} hover:opacity-90 text-white` : 'bg-green-600 hover:bg-green-700 text-white'}`}>
+            {isLoading ? 'Analyzing...' : (isLastQuestion ? 'Final Submission' : 'Next Question →')}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -200,10 +246,25 @@ const SharedProfileTest: FC<SharedProps> = ({ title, headerColorClass = 'bg-indi
   const renderResults = () => {
     if (!results) return null
     const topCluster = results[0]
+    const attempted = Object.values(answers).filter((a) => a !== -1).length
+    const skipped = totalQuestions - attempted
     return (
       <div className="p-10 text-center bg-white rounded-xl shadow-2xl">
         <h2 className="text-4xl font-extrabold text-blue-700 mb-4">{title} — Career Path Analysis</h2>
         <p className="text-xl text-gray-600 mb-8">Your profile has been matched against relevant career clusters.</p>
+
+        <div className="mb-6 p-4 rounded-lg border bg-gray-50 text-left">
+          <div className="text-sm text-gray-600">Marks</div>
+          <div className="text-lg font-semibold text-gray-900">Top Fit Score: {topCluster.score}%</div>
+          <div className="text-sm text-gray-700">Attempted: {attempted}/{totalQuestions} · Skipped: {skipped}</div>
+          {saveStatus.state === 'saving' && <div className="text-sm text-gray-600 mt-2">Saving marks…</div>}
+          {saveStatus.state === 'saved' && (
+            <div className="text-sm text-green-700 mt-2">
+              {saveStatus.message} {saveStatus.assessmentId ? `Assessment ID: ${saveStatus.assessmentId}` : ''}
+            </div>
+          )}
+          {saveStatus.state === 'error' && <div className="text-sm text-red-600 mt-2">{saveStatus.message}</div>}
+        </div>
         <div className={`bg-blue-50 border-4 ${['Engineering','Medicine','Research'].includes(topCluster.cluster) ? 'border-blue-800' : 'border-blue-600'} p-6 rounded-xl mb-8 shadow-lg`}>
           <p className="text-2xl font-semibold text-gray-700">Top Recommended Cluster</p>
           <h3 className={`text-5xl font-black ${['Engineering','Medicine','Research'].includes(topCluster.cluster) ? 'text-blue-900' : 'text-blue-800'} mt-2`}>{topCluster.cluster}</h3>

@@ -1,7 +1,7 @@
 'use client'
 
 // 10th Standard Test Results Page
-import React, { useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -87,6 +87,63 @@ export default function TenthStandardResultClient() {
   const result = streamInfo[stream] || streamInfo.science
   const Icon = result.icon
   const [region, setRegion] = useState<string>('south')
+  const [loadingSaved, setLoadingSaved] = useState<boolean>(true)
+  const [savedError, setSavedError] = useState<string | null>(null)
+  const [savedAssessment, setSavedAssessment] = useState<any | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function run() {
+      setLoadingSaved(true)
+      setSavedError(null)
+      try {
+        const res = await fetch('/api/assessments/latest?standard=10th-standard', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        })
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          const msg = typeof json?.error === 'string' ? json.error : 'Failed to load saved marks'
+          throw new Error(msg)
+        }
+        if (!cancelled) {
+          setSavedAssessment(json?.assessment ?? null)
+        }
+      } catch (e: any) {
+        if (!cancelled) setSavedError(e?.message || 'Failed to load saved marks')
+      } finally {
+        if (!cancelled) setLoadingSaved(false)
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const savedSummary = useMemo(() => {
+    const finalScore = savedAssessment?.finalScore
+    if (!finalScore) return null
+
+    const aptitudeScores = (savedAssessment?.aptitudeScores || []) as Array<any>
+    const aptitudeCorrect = aptitudeScores.reduce((acc, s) => acc + (typeof s?.correctCount === 'number' ? s.correctCount : 0), 0)
+    const aptitudeTotal = aptitudeScores.reduce((acc, s) => acc + (typeof s?.totalQuestions === 'number' ? s.totalQuestions : 0), 0)
+    const aptitudePercent = aptitudeTotal > 0 ? Math.round((aptitudeCorrect / aptitudeTotal) * 100) : 0
+
+    return {
+      assessmentId: savedAssessment?.id as string,
+      completedAt: savedAssessment?.completedAt as string | null,
+      recommendedStream: finalScore?.recommendedStream as string,
+      confidence: finalScore?.confidence as number,
+      flexibility: finalScore?.flexibility as number,
+      aptitudeScores,
+      aptitudeCorrect,
+      aptitudeTotal,
+      aptitudePercent,
+    }
+  }, [savedAssessment])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4 sm:p-6">
@@ -116,6 +173,48 @@ export default function TenthStandardResultClient() {
             </div>
             <CardTitle className="text-2xl sm:text-3xl">{result.title}</CardTitle>
           </CardHeader>
+        </Card>
+
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-xl sm:text-2xl">Saved Marks (from Database)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingSaved ? (
+              <div className="text-sm text-gray-600 dark:text-gray-300">Loading saved marks…</div>
+            ) : savedError ? (
+              <div className="text-sm text-red-600">{savedError}</div>
+            ) : savedSummary ? (
+              <div className="space-y-2 text-sm text-gray-800 dark:text-gray-200">
+                <div><span className="font-semibold">Assessment ID:</span> {savedSummary.assessmentId}</div>
+                <div><span className="font-semibold">Recommended Stream:</span> {savedSummary.recommendedStream}</div>
+                <div><span className="font-semibold">Confidence:</span> {savedSummary.confidence}%</div>
+                <div><span className="font-semibold">Flexibility:</span> {savedSummary.flexibility}%</div>
+                {savedSummary.aptitudeTotal > 0 ? (
+                  <div>
+                    <span className="font-semibold">Marks (Aptitude):</span> {savedSummary.aptitudeCorrect}/{savedSummary.aptitudeTotal} ({savedSummary.aptitudePercent}%)
+                  </div>
+                ) : null}
+                {Array.isArray(savedSummary.aptitudeScores) && savedSummary.aptitudeScores.length > 0 ? (
+                  <div className="pt-2">
+                    <div className="font-semibold mb-1">Aptitude (%)</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {savedSummary.aptitudeScores.map((s: any) => (
+                        <div key={s.id} className="rounded-md border bg-gray-50 dark:bg-gray-800 p-3">
+                          <div className="font-semibold">{s.section}</div>
+                          <div>{s.percentage}%</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="text-sm text-gray-600 dark:text-gray-300">
+                No saved marks found yet. Take the test once to create rows.
+              </div>
+            )}
+          </CardContent>
         </Card>
 
         <div className="mb-4 mx-auto max-w-sm flex items-center justify-center gap-3">

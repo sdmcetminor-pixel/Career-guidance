@@ -2,6 +2,7 @@
 
 // 12th Standard Test Results Page
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ArrowLeft, CheckCircle2, Code, Stethoscope, Briefcase, BookOpen } from 'lucide-react'
@@ -115,6 +116,33 @@ export default function TwelfthStandardResultClient() {
   const field = searchParams?.get('field') ?? 'engineering'
   const result = fieldInfo[field] || fieldInfo.engineering
   const Icon = result.icon
+  const [saved, setSaved] = useState<any | null>(null)
+  const [savedError, setSavedError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+
+    const run = async () => {
+      try {
+        const res = await fetch('/api/assessments/latest?standard=12th-standard')
+        if (!res.ok) {
+          const txt = await res.text().catch(() => '')
+          throw new Error(txt || 'Failed to load saved marks')
+        }
+        const json = await res.json()
+        if (cancelled) return
+        setSaved(json?.assessment ?? null)
+      } catch (e: any) {
+        if (cancelled) return
+        setSavedError(e?.message || 'Failed to load saved marks')
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 dark:from-gray-900 dark:to-gray-800 p-4 sm:p-6">
@@ -146,6 +174,33 @@ export default function TwelfthStandardResultClient() {
             <CardTitle className="text-2xl sm:text-3xl">{result.title}</CardTitle>
             <CardDescription className="text-base mt-2">Recommended field based on your interests and preferences</CardDescription>
           </CardHeader>
+        </Card>
+
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-xl sm:text-2xl">Saved Marks (from Database)</CardTitle>
+            <CardDescription>Latest saved 12th assessment for your account</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {savedError ? (
+              <p className="text-sm text-red-600">{savedError}</p>
+            ) : !saved ? (
+              <p className="text-sm text-gray-600">Loading…</p>
+            ) : (
+              <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                <div><span className="font-semibold">Assessment ID:</span> {saved.id}</div>
+                {saved.finalScore?.recommendedStream && (
+                  <div><span className="font-semibold">Top Recommendation:</span> {saved.finalScore.recommendedStream}</div>
+                )}
+                {typeof saved.finalScore?.confidence === 'number' && (
+                  <div><span className="font-semibold">Confidence:</span> {saved.finalScore.confidence}%</div>
+                )}
+                {typeof saved.finalScore?.flexibility === 'number' && (
+                  <div><span className="font-semibold">Flexibility:</span> {saved.finalScore.flexibility}%</div>
+                )}
+              </div>
+            )}
+          </CardContent>
         </Card>
 
         <Card className="mb-6">

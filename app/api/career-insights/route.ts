@@ -1,5 +1,8 @@
 import { NextResponse, NextRequest } from 'next/server';
 // NOTE: Optional import for '@google/genai' (dynamic import below) — avoids compile-time failures if package isn't installed
+import { prisma } from '@/lib/prisma'
+import { getAuthenticatedUser } from '@/lib/api-helpers'
+import { persistRecommendedCareersForUser } from '@/lib/persist-recommended-careers'
 
 // --- INTERFACE DEFINITION (Used internally and for response schema) ---
 // This interface defines the structured JSON output expected by the frontend.
@@ -267,6 +270,33 @@ export async function POST(request: NextRequest) {
             suggestedDegrees: [],
             nextSteps: []
         };
+
+        // Persist recommended careers into careers + saved_careers (best-effort; does not affect response).
+        try {
+            const user = await getAuthenticatedUser();
+            if (user?.id && Array.isArray(insights?.recommendedCareers) && insights.recommendedCareers.length > 0) {
+                await prisma.$transaction(async (tx) => {
+                    await persistRecommendedCareersForUser({
+                        prisma: tx,
+                        userId: user.id,
+                        careers: insights.recommendedCareers.map((c) => ({
+                            title: c.name,
+                            category: c.category,
+                            description: `${c.fitReason}${Number.isFinite(c.fitScore) ? ` (Fit score: ${c.fitScore})` : ''}`,
+                            skills: `Suggested based on your profile for ${c.category}.`,
+                            notes: 'Auto-saved from career insights',
+                        })),
+                        defaults: {
+                            category: (stream || 'General').toString(),
+                            skills: 'See career insights for suggested skills.',
+                            notes: 'Auto-saved from career insights',
+                        },
+                    });
+                });
+            }
+        } catch (e) {
+            console.error('Persist career insights recommended careers failed:', e);
+        }
 
         // Success: Return structured insights to the frontend
         return NextResponse.json(insights, { status: 200 });

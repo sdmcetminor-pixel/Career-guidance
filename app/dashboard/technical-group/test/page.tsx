@@ -268,6 +268,9 @@ export default function TechnicalGroupTestPage() {
   const [answers, setAnswers] = useState<{ [key: number]: number }>({})
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [saveState, setSaveState] = useState<{ state: 'idle' | 'saving' | 'saved' | 'error'; message?: string; assessmentId?: string }>(
+    { state: 'idle' }
+  )
   // Countdown timer: remaining seconds from 15 minutes
   const TOTAL_SECONDS = 15 * 60
   const [remainingSeconds, setRemainingSeconds] = useState(TOTAL_SECONDS)
@@ -284,6 +287,14 @@ export default function TechnicalGroupTestPage() {
     }
   }
 
+  const handleSkip = () => {
+    if (currentQuestion < questions.length - 1) {
+      setCurrentQuestion(currentQuestion + 1)
+    } else {
+      handleSubmit()
+    }
+  }
+
   const handlePrevious = () => {
     if (currentQuestion > 0) {
       setCurrentQuestion(currentQuestion - 1)
@@ -291,36 +302,36 @@ export default function TechnicalGroupTestPage() {
   }
 
   const handleSubmit = useCallback(async () => {
-    const answeredCount = Object.keys(answers).length
-    if (answeredCount < questions.length) {
-      toast({
-        title: "Incomplete Test",
-        description: `Please answer all ${questions.length} questions before submitting.`,
-        variant: "destructive"
-      })
-      return
-    }
-
     setIsSubmitted(true)
+    setSaveState({ state: 'saving' })
     toast({
       title: "Submitting Test...",
       description: "Generating personalized recommendations. Please wait.",
     })
 
-    // Calculate RIASEC scores
-    const riasecScores: { [key: string]: number } = {
-      R: 0,
-      I: 0,
-      A: 0,
-      S: 0,
-      E: 0,
-      C: 0,
-    }
+    const attempted = Object.keys(answers).length
+    const skipped = questions.length - attempted
+
+    // Calculate RIASEC average scores (1-5) based only on attempted answers
+    const riasecSums: { [key: string]: number } = { R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 }
+    const riasecCounts: { [key: string]: number } = { R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 }
 
     questions.forEach((q) => {
-      const scoreValue = (answers[q.id] || 0) + 1 // 1-5 scale
-      riasecScores[q.riasec] += scoreValue
+      const raw = answers[q.id]
+      if (raw === undefined) return
+      const scoreValue = raw + 1 // 1-5 scale
+      riasecSums[q.riasec] += scoreValue
+      riasecCounts[q.riasec] += 1
     })
+
+    const riasecScores: { [key: string]: number } = {
+      R: riasecCounts.R > 0 ? riasecSums.R / riasecCounts.R : 0,
+      I: riasecCounts.I > 0 ? riasecSums.I / riasecCounts.I : 0,
+      A: riasecCounts.A > 0 ? riasecSums.A / riasecCounts.A : 0,
+      S: riasecCounts.S > 0 ? riasecSums.S / riasecCounts.S : 0,
+      E: riasecCounts.E > 0 ? riasecSums.E / riasecCounts.E : 0,
+      C: riasecCounts.C > 0 ? riasecSums.C / riasecCounts.C : 0,
+    }
 
     // Calculate domain fits
     const domainScores: { [key: string]: number } = {}
@@ -358,6 +369,39 @@ export default function TechnicalGroupTestPage() {
     // Determine top domain
     const topDomain = rankedDomains[0]
 
+    // Save to DB (Supabase via Prisma)
+    try {
+      const profileAnswers: Record<string, number | null> = {}
+      for (const q of questions) {
+        const raw = answers[q.id]
+        profileAnswers[String(q.id)] = raw === undefined ? null : raw + 1
+      }
+
+      const res = await fetch('/api/assessments/technical/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          standard: 'technical-group',
+          region: 'na',
+          timeExpired: remainingSeconds <= 0,
+          profileAnswers,
+          recommendedDomain: topDomain?.domain ?? null,
+          attempted,
+          skipped,
+        }),
+      })
+
+      if (res.ok) {
+        const json = await res.json()
+        setSaveState({ state: 'saved', assessmentId: json?.assessmentId, message: 'Marks saved.' })
+      } else {
+        const txt = await res.text().catch(() => '')
+        setSaveState({ state: 'error', message: txt || 'Failed to save marks.' })
+      }
+    } catch (e) {
+      setSaveState({ state: 'error', message: 'Network error saving marks.' })
+    }
+
     // Save results + insights to localStorage for the results page
     try {
       const elapsedSeconds = TOTAL_SECONDS - remainingSeconds
@@ -369,6 +413,8 @@ export default function TechnicalGroupTestPage() {
         domainScores,
         rankedDomains,
         insights,
+        attempted,
+        skipped,
         elapsedSeconds
       }))
     } catch (e) {
@@ -522,23 +568,31 @@ export default function TechnicalGroupTestPage() {
           >
             ← Previous
           </Button>
-          {currentQuestion === questions.length - 1 ? (
-            <Button 
-              onClick={handleSubmit}
-              disabled={selectedAnswer === undefined}
-              className="bg-purple-600 hover:bg-purple-700"
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={handleSkip}
             >
-              Submit Test
+              Skip
             </Button>
-          ) : (
-            <Button 
-              onClick={handleNext}
-              disabled={selectedAnswer === undefined}
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              Next Question →
-            </Button>
-          )}
+            {currentQuestion === questions.length - 1 ? (
+              <Button
+                onClick={handleSubmit}
+                disabled={selectedAnswer === undefined}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                Submit Test
+              </Button>
+            ) : (
+              <Button
+                onClick={handleNext}
+                disabled={selectedAnswer === undefined}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                Next Question →
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>

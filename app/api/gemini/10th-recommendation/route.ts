@@ -1,4 +1,7 @@
 import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { getAuthenticatedUser } from '@/lib/api-helpers'
+import { persistRecommendedCareersForUser } from '@/lib/persist-recommended-careers'
 
 export const runtime = 'nodejs'
 
@@ -10,6 +13,45 @@ type RecommendationRequest = {
   region: 'north' | 'south'
   aptitudeBreakdown: Record<string, number>
   profileBreakdown: Record<string, number>
+  // If true (default), persist recommended careers into careers + saved_careers for the user.
+  persistToSavedCareers?: boolean
+}
+
+function extractRecommendedCareersFromRecommendation(text: string): Array<{ title: string; description: string }>
+{
+  const normalized = (text || '').replace(/\r\n/g, '\n')
+  const startIdx = normalized.search(/^Recommended Careers\s*$/m)
+  const endIdx = normalized.search(/^Exams to Prepare\s*$/m)
+  if (startIdx < 0 || endIdx < 0 || endIdx <= startIdx) return []
+
+  const section = normalized.slice(startIdx, endIdx)
+  const lines = section
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .filter((l) => l.toLowerCase() !== 'recommended careers')
+
+  const items: Array<{ title: string; description: string }> = []
+  let current: { title: string; description: string } | null = null
+
+  for (const line of lines) {
+    const dashIdx = line.indexOf(' — ')
+    if (dashIdx > 0) {
+      if (current) items.push(current)
+      const title = line.slice(0, dashIdx).trim()
+      const desc = line.slice(dashIdx + 3).trim()
+      current = { title, description: desc }
+      continue
+    }
+
+    // Continuation line for previous career item
+    if (current) {
+      current.description = `${current.description}${current.description ? ' ' : ''}${line}`.trim()
+    }
+  }
+
+  if (current) items.push(current)
+  return items
 }
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number) {
@@ -523,7 +565,53 @@ export async function POST(req: Request) {
       )
     }
 
-    return NextResponse.json({ recommendation })
+    const persistToSavedCareers = body.persistToSavedCareers !== false
+
+    let persisted: any = undefined
+    if (persistToSavedCareers) {
+      try {
+        const user = await getAuthenticatedUser()
+        if (user?.id) {
+          const extracted = extractRecommendedCareersFromRecommendation(recommendation)
+          if (extracted.length > 0) {
+            persisted = await prisma.$transaction(async (tx) => {
+              return persistRecommendedCareersForUser({
+                prisma: tx,
+                userId: user.id,
+                careers: extracted.map((c) => ({
+                  title: c.title,
+                  description: c.description,
+                  category: streamPretty,
+                  skills:
+                    streamKey === 'science'
+                      ? 'Mathematics, problem-solving, lab skills, basic programming'
+                      : streamKey === 'commerce'
+                        ? 'Accounting, Excel/Sheets, quantitative aptitude, communication'
+                        : 'Writing, communication, research, current affairs'
+                  ,
+                  notes: 'Auto-saved from AI recommendation',
+                })),
+                defaults: {
+                  category: streamPretty,
+                  skills:
+                    streamKey === 'science'
+                      ? 'Mathematics, problem-solving, lab skills, basic programming'
+                      : streamKey === 'commerce'
+                        ? 'Accounting, Excel/Sheets, quantitative aptitude, communication'
+                        : 'Writing, communication, research, current affairs',
+                  notes: 'Auto-saved from AI recommendation',
+                },
+              })
+            })
+          }
+        }
+      } catch (e) {
+        // Persistence should not break the recommendation response
+        console.error('Persist recommended careers failed:', e)
+      }
+    }
+
+    return NextResponse.json({ recommendation, persisted })
   } catch (err: any) {
     if (err instanceof GeminiHttpError) {
       return NextResponse.json(
