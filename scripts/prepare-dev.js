@@ -106,7 +106,7 @@ if (fs.existsSync(prismaClientDir)) {
 // prefer local binary to avoid PATH issues
 const prismaBin = path.join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'prisma.cmd' : 'prisma');
 console.log('Applying Prisma schema to the database using local binary:', prismaBin);
-run(prismaBin, ['db', 'push'], { shell: process.platform === 'win32', allowFailure: true });
+run(prismaBin, ['db', 'push', '--skip-generate'], { shell: process.platform === 'win32', allowFailure: true });
 
 console.log('Prepare step finished.');
 process.exit(0);

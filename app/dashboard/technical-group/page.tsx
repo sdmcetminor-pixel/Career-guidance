@@ -54,6 +54,16 @@ export default function TechnicalGroupPage() {
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 Full-stack development, mobile app development, software architecture, and cloud computing.
               </p>
+              {/* View Pathways link for fullstack careers */}
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push('/roadmap')}
+                >
+                  View Pathways
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
