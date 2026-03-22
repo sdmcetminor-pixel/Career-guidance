@@ -36,6 +36,18 @@ console.log('-> prepare-dev: running in', root);
 // 0) If Next.js build artifacts are corrupted (common with OneDrive/AV locks), clear .next so dev can start.
 try {
   const nextDir = path.join(root, '.next');
+  const webpackCacheDir = path.join(nextDir, 'cache', 'webpack');
+
+  // Best-effort cleanup: stale webpack cache on Windows can trigger ChunkLoadError and ENOENT rename failures.
+  try {
+    if (fs.existsSync(webpackCacheDir)) {
+      fs.rmSync(webpackCacheDir, { recursive: true, force: true });
+      console.log('Removed stale .next/cache/webpack cache.');
+    }
+  } catch (cacheErr) {
+    console.warn('Warning: could not clean .next/cache/webpack:', cacheErr instanceof Error ? cacheErr.message : String(cacheErr));
+  }
+
   if (fs.existsSync(nextDir)) {
     const manifestCandidates = [
       path.join(nextDir, 'build-manifest.json'),
