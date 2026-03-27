@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 type QuizQuestion = {
   question: string
@@ -19,198 +20,199 @@ function extractYoutubeId(url: string): string | null {
   return match && match[7].length === 11 ? match[7] : null
 }
 
-function normalizeApiKey(raw: string | undefined) {
-  if (!raw) return ''
-  let apiKey = raw.trim().replace(/^['"]|['"]$/g, '')
-  if (apiKey.includes(' ')) apiKey = apiKey.split(' ')[0]
-  return apiKey
-}
-
-function fallbackQuizFromTranscript(transcript: string): QuizResponse {
-  const source = transcript.replace(/\s+/g, ' ').trim()
-  const snippet = source.slice(0, 160)
-
-  return {
-    questions: [
-      {
-        question: 'What is the main topic discussed in this lesson?',
-        options: [
-          `A: ${snippet || 'Core web development concepts'}`,
-          'B: Advanced rocket propulsion systems',
-          'C: Ancient mythology timelines',
-          'D: Professional cooking techniques',
-        ],
-        correctAnswer: 'A',
-      },
-      {
-        question: 'Which approach best helps you learn from this video?',
-        options: [
-          'A: Skip practice and only watch once',
-          'B: Practice with small examples while learning',
-          'C: Avoid taking notes or summaries',
-          'D: Memorize without understanding',
-        ],
-        correctAnswer: 'B',
-      },
-      {
-        question: 'What should be your next step after watching?',
-        options: [
-          'A: Build one small project using the topic',
-          'B: Ignore the topic and switch randomly',
-          'C: Delete your notes and restart later',
-          'D: Avoid trying any exercises',
-        ],
-        correctAnswer: 'A',
-      },
-      {
-        question: 'How do you best verify your understanding?',
-        options: [
-          'A: Explain the concept in your own words',
-          'B: Only watch at higher speed',
-          'C: Never test yourself',
-          'D: Avoid asking questions',
-        ],
-        correctAnswer: 'A',
-      },
-    ],
-  }
-}
-
-function sanitizeQuiz(input: any): QuizResponse {
-  const rows = Array.isArray(input?.questions) ? input.questions : []
-  const normalized = rows
-    .map((q: any) => {
-      const question = (q?.question || '').toString().trim()
-      const options = Array.isArray(q?.options)
-        ? q.options.map((o: any) => (o || '').toString().trim()).slice(0, 4)
-        : []
-      let correctAnswer = (q?.correctAnswer || '').toString().trim().toUpperCase()
-
-      if (!['A', 'B', 'C', 'D'].includes(correctAnswer)) {
-        correctAnswer = 'A'
-      }
-
-      if (!question || options.length < 4) return null
-      return {
-        question,
-        options,
-        correctAnswer: correctAnswer as 'A' | 'B' | 'C' | 'D',
-      }
-    })
-    .filter(Boolean) as QuizQuestion[]
-
-  if (normalized.length === 0) {
-    return fallbackQuizFromTranscript('')
-  }
-
-  return { questions: normalized.slice(0, 4) }
-}
-
 async function fetchTranscript(videoId: string): Promise<string> {
+  console.log(`[quiz] Fetching transcript for video: ${videoId}`);
+  
+  // Try youtube-transcript
   try {
-    const { YtTranscript } = await import('yt-transcript')
-    const transcriptFetcher = new YtTranscript({ videoId })
-    const transcriptData = await transcriptFetcher.getTranscript()
-    if (Array.isArray(transcriptData) && transcriptData.length > 0) {
-      return transcriptData.map((item: any) => item.text).join(' ')
-    }
-  } catch (error) {
-    console.warn('Could not fetch transcript from yt-transcript:', error)
-  }
-
-  return 'This lesson explains foundational web development ideas and practical best practices for beginners.'
-}
-
-async function generateQuizWithGemini(transcript: string, apiKey: string): Promise<QuizResponse | null> {
-  const prompt =
-    'Generate exactly 4 multiple-choice quiz questions from this transcript. ' +
-    'Output only valid JSON in this shape: ' +
-    '{"questions":[{"question":"...","options":["A: ...","B: ...","C: ...","D: ..."],"correctAnswer":"A"}]}. ' +
-    'Keep each question clear for beginners.\n\n' +
-    `Transcript:\n${transcript.slice(0, 4000)}`
-
-  try {
-    const genai = (await import('@google/genai').catch(() => null)) as any
-    if (!genai) return null
-
-    const ClientCandidates = [
-      genai?.GoogleGenAI,
-      genai?.default?.GoogleGenAI,
-      genai?.default,
-      genai?.createClient,
-      genai?.default?.createClient,
-    ]
-
-    let ai: any = null
-    for (const Candidate of ClientCandidates) {
-      if (!Candidate) continue
-      try {
-        if (typeof Candidate === 'function') {
-          try {
-            ai = new Candidate({ apiKey })
-            break
-          } catch {
-            ai = Candidate({ apiKey })
-            break
-          }
-        }
-      } catch {
-        // Keep trying variants.
+    const ytModule = await import('youtube-transcript');
+    const YoutubeTranscript = ytModule.YoutubeTranscript || (ytModule as any).default?.YoutubeTranscript;
+    if (YoutubeTranscript) {
+      const transcript = await YoutubeTranscript.fetchTranscript(videoId);
+      if (transcript && transcript.length > 0) {
+        const text = transcript.map((t: any) => t.text).join(' ').slice(0, 6000);
+        if (text.length > 50) return text;
       }
     }
-
-    if (!ai?.models?.generateContent) return null
-
-    const resp = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: { temperature: 0.4, maxOutputTokens: 800 },
-    })
-
-    const text =
-      resp?.text ||
-      resp?.candidates?.[0]?.content?.parts?.map((p: any) => p?.text).filter(Boolean).join('\n') ||
-      ''
-
-    if (!text.trim()) return null
-
-    const jsonCandidate = text.match(/\{[\s\S]*\}/)?.[0]
-    if (!jsonCandidate) return null
-
-    const parsed = JSON.parse(jsonCandidate)
-    return sanitizeQuiz(parsed)
-  } catch (error) {
-    console.warn('Gemini quiz generation failed, using fallback quiz:', error)
-    return null
+  } catch (err: any) {
+    console.warn(`[quiz] youtube-transcript error: ${err?.message || err}`);
   }
+
+  // Try yt-transcript
+  try {
+    const ytModule = await import('yt-transcript');
+    const YtTranscript = ytModule.YtTranscript || (ytModule as any).default?.YtTranscript;
+    if (YtTranscript) {
+      const fetcher = new YtTranscript({ videoId });
+      const data = await fetcher.getTranscript();
+      if (Array.isArray(data) && data.length > 0) {
+        const text = data.map((item: any) => item.text).join(' ').slice(0, 6000);
+        if (text.length > 50) return text;
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[quiz] yt-transcript error: ${err?.message || err}`);
+  }
+
+  return "";
+}
+
+function shuffleArray<T>(arr: T[]): T[] {
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { videoUrl } = await request.json()
+    const body = await request.json();
+    const videoUrl = body?.videoUrl;
+    const topic = body?.topic || 'the main subject of the video';
 
     if (!videoUrl || typeof videoUrl !== 'string') {
-      return NextResponse.json({ error: 'Video URL is required' }, { status: 400 })
+      return NextResponse.json({ error: 'Video URL is required' }, { status: 400 });
     }
 
-    const videoId = extractYoutubeId(videoUrl)
+    const videoId = extractYoutubeId(videoUrl);
     if (!videoId) {
-      return NextResponse.json({ error: 'Invalid YouTube URL' }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid YouTube URL' }, { status: 400 });
     }
 
-    const transcript = await fetchTranscript(videoId)
+    console.log(`[quiz] Processing video: ${videoId}`);
 
-    const apiKey =
-      normalizeApiKey(process.env.GEMINI_API_KEY) ||
-      normalizeApiKey((process.env as any).gemini_api_key) ||
-      normalizeApiKey(process.env.GOOGLE_API_KEY)
+    // 1. Get Transcript
+    const transcript = await fetchTranscript(videoId);
+    if (!transcript) {
+      console.warn(`[quiz] Transcript FETCH FAILED for ${videoId}`);
+      return NextResponse.json({ error: 'Could not fetch video transcript. This video might not have captions.' }, { status: 422 });
+    }
 
-    const aiQuiz = apiKey ? await generateQuizWithGemini(transcript, apiKey) : null
-    const quiz = aiQuiz || fallbackQuizFromTranscript(transcript)
+    console.log(`[quiz] Transcript fetched successfully: ${transcript.length} chars`);
 
-    return NextResponse.json(quiz)
-  } catch (error) {
-    console.error('Quiz generation error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    // 2. Setup Hugging Face API
+    let apiKey = process.env.HUGGING_FACE_API_TOKEN || '';
+    
+    // Normalize API Key: check for literal quotes or whitespace
+    apiKey = apiKey.trim().replace(/^['"]|['"]$/g, '');
+    
+    if (!apiKey) {
+      console.error('[quiz] Hugging Face API Key MISSING');
+      return NextResponse.json({ error: 'Hugging Face API Key not configured in server environment' }, { status: 500 });
+    }
+
+    // 3. Generate Quiz
+    const randomSeed = Math.random().toString(36).substring(7);
+    const count = 10;
+    const prompt = `
+You are an expert exam paper setter.
+The main topic of this test is: ${topic}.
+
+Generate EXACTLY ${count} multiple-choice questions heavily focused on explaining ${topic} concepts based on the transcript.
+
+REQUIREMENTS:
+- Focus predominantly on ${topic}
+- Difficulty: Medium to challenging
+- Cover DIFFERENT concepts related to ${topic}
+- Avoid repetition
+- Include:
+  - Concept-based questions
+  - Application-based questions
+  - At least 2 scenario-based questions
+
+Each question must:
+- Be clear and complete
+- Have 4 options (A, B, C, D)
+- Only ONE correct answer
+- Include realistic distractors
+
+IMPORTANT:
+- Do NOT copy sentences directly
+- Ensure variety
+
+OUTPUT STRICTLY JSON:
+{
+  "questions": [
+    {
+      "question": "...",
+      "options": [
+        "A: ...",
+        "B: ...",
+        "C: ...",
+        "D: ..."
+      ],
+      "correctAnswer": "A"
+    }
+  ]
+}
+
+Transcript:
+${transcript.slice(0, 3000)}
+`;
+
+    console.log('[quiz] Requesting Hugging Face output via Router API (meta-llama/Meta-Llama-3-8B-Instruct)...');
+    
+    const apiUrl = `https://router.huggingface.co/v1/chat/completions`;
+    
+    const hfRes = await fetch(apiUrl, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: "meta-llama/Meta-Llama-3-8B-Instruct",
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 2000,
+        temperature: 0.7,
+        response_format: { type: "json_object" }
+      }),
+      cache: 'no-store'
+    });
+
+    if (!hfRes.ok) {
+      const errText = await hfRes.text();
+      console.error('[quiz] Hugging Face API error:', errText);
+      try {
+        const errJson = JSON.parse(errText);
+        return NextResponse.json({ error: errJson?.error?.message || errJson?.error || `HF API returned ${hfRes.status}` }, { status: hfRes.status });
+      } catch (e) {
+        return NextResponse.json({ error: `Hugging Face API returned ${hfRes.status}` }, { status: hfRes.status });
+      }
+    }
+
+    const result = await hfRes.json();
+    const text = result?.choices?.[0]?.message?.content;
+    
+    if (!text) {
+      console.error('[quiz] Hugging Face returned empty text');
+      throw new Error('Empty AI response from Hugging Face');
+    }
+
+    // Clean JSON from text (strip markdown fences if present)
+    const firstBrace = text.indexOf('{');
+    const lastBrace = text.lastIndexOf('}');
+    
+    if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
+      console.error('[quiz] Hugging Face output not JSON:', text.slice(0, 500));
+      throw new Error('Invalid AI response format');
+    }
+
+    const quizData = JSON.parse(text.slice(firstBrace, lastBrace + 1));
+    if (!quizData.questions || !Array.isArray(quizData.questions)) {
+      throw new Error('Invalid quiz structure');
+    }
+
+    // Randomize
+    quizData.questions = shuffleArray(quizData.questions);
+
+    console.log(`[quiz] SUCCESS: Generated ${quizData.questions.length} questions from transcript.`);
+    return NextResponse.json(quizData);
+
+  } catch (error: any) {
+    console.error(`[quiz] Unhandled Error: ${error?.message || error}`);
+    return NextResponse.json({ error: 'Failed to generate quiz' }, { status: 500 });
   }
 }

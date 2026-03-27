@@ -438,7 +438,7 @@ export default function RoadmapPage() {
       const response = await fetch("/api/generate-quiz", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ videoUrl: video.url }),
+        body: JSON.stringify({ videoUrl: video.url, topic: selectedNode?.title }),
       });
 
       if (!response.ok) {
