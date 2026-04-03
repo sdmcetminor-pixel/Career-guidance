@@ -84,13 +84,13 @@ export async function POST(request: NextRequest) {
     console.log(`[quiz] Processing video: ${videoId}`);
 
     // 1. Get Transcript
-    const transcript = await fetchTranscript(videoId);
+    let transcript = await fetchTranscript(videoId);
     if (!transcript) {
-      console.warn(`[quiz] Transcript FETCH FAILED for ${videoId}`);
-      return NextResponse.json({ error: 'Could not fetch video transcript. This video might not have captions.' }, { status: 422 });
+      console.warn(`[quiz] Transcript FETCH FAILED for ${videoId}. Falling back to topic-based generation.`);
+      transcript = "";
+    } else {
+      console.log(`[quiz] Transcript fetched successfully: ${transcript.length} chars`);
     }
-
-    console.log(`[quiz] Transcript fetched successfully: ${transcript.length} chars`);
 
     // 2. Setup Hugging Face API
     let apiKey = process.env.HUGGING_FACE_API_TOKEN || '';
@@ -106,8 +106,9 @@ export async function POST(request: NextRequest) {
     // 3. Generate Quiz
     const randomSeed = Math.random().toString(36).substring(7);
     const count = 10;
-    const prompt = `
+ const prompt = `
 You are an expert exam paper setter.
+
 The main topic of this test is: ${topic}.
 
 Generate EXACTLY ${count} multiple-choice questions heavily focused on explaining ${topic} concepts based on the transcript.
@@ -115,22 +116,31 @@ Generate EXACTLY ${count} multiple-choice questions heavily focused on explainin
 REQUIREMENTS:
 - Focus predominantly on ${topic}
 - Difficulty: Medium to challenging
-- Cover DIFFERENT concepts related to ${topic}
+- Cover DIFFERENT subtopics related to ${topic}
 - Avoid repetition
 - Include:
   - Concept-based questions
   - Application-based questions
   - At least 2 scenario-based questions
 
+IMPORTANT:
+Each question MUST belong to a CLEAR SUBTOPIC of ${topic}.
+
+Examples of subtopics:
+- If topic is HTML → "Forms", "Semantic HTML", "Tables", "Elements", "Attributes"
+- If topic is CSS → "Selectors", "Box Model", "Flexbox", "Grid"
+
 Each question must:
 - Be clear and complete
 - Have 4 options (A, B, C, D)
 - Only ONE correct answer
 - Include realistic distractors
+- Include a "topic" field representing the subtopic
 
 IMPORTANT:
 - Do NOT copy sentences directly
 - Ensure variety
+- The "topic" field must be specific (NOT just "${topic}", but subtopics)
 
 OUTPUT STRICTLY JSON:
 {
@@ -143,13 +153,13 @@ OUTPUT STRICTLY JSON:
         "C: ...",
         "D: ..."
       ],
-      "correctAnswer": "A"
+      "correctAnswer": "A",
+      "topic": "Forms"
     }
   ]
 }
 
-Transcript:
-${transcript.slice(0, 3000)}
+${transcript ? `Transcript:\n${transcript.slice(0, 3000)}` : `[Important Note: No video transcript is available. Please generate foundational and standard questions broadly covering ${topic} suitable for the video's context.]`}
 `;
 
     console.log('[quiz] Requesting Hugging Face output via Router API (meta-llama/Meta-Llama-3-8B-Instruct)...');

@@ -161,14 +161,14 @@ export default function TwelfthStandardTestPage() {
 
   if (isSubmitted) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 dark:from-gray-900 dark:to-gray-800 p-4">
-        <Card className="w-full max-w-md text-center">
+      <div className="min-h-screen flex items-center justify-center bg-surface-container-low dark:bg-gray-900 p-4">
+        <Card className="w-full max-w-md text-center bg-surface-container-lowest rounded-3xl border border-outline-variant/30 shadow-2xl">
           <CardHeader>
-            <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto mb-4" />
-            <CardTitle className="text-2xl">Test Submitted!</CardTitle>
+            <CheckCircle2 className="h-16 w-16 text-primary mx-auto mb-4" />
+            <CardTitle className="text-2xl text-on-surface font-headline font-bold">Test Submitted!</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">
+            <p className="text-on-surface-variant mb-4 font-medium">
               Processing your results...
             </p>
           </CardContent>
@@ -177,29 +177,28 @@ export default function TwelfthStandardTestPage() {
     )
   }
 
-  
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 dark:from-gray-900 dark:to-gray-800 p-4 sm:p-6">
+    <div className="min-h-screen bg-surface-container-low dark:bg-gray-900 p-4 sm:p-6 lg:p-8">
       <div className="container mx-auto max-w-7xl">
         {/* Top header: user info/logout on the right and title */}
-        <div className="flex items-start justify-between gap-4 mb-6">
-            <div>
-            <h1 className="text-3xl font-bold text-black dark:text-white selection:text-white">12th Pass Stream Test</h1>
-            <p className="text-sm text-gray-500">12th Pass: Stream Selection Profile</p>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8 py-8 px-6 bg-gradient-to-b from-primary/5 to-transparent rounded-3xl border border-outline-variant/20 shadow-sm relative overflow-hidden">
+           <div className="absolute top-[-50px] right-[-50px] w-64 h-64 bg-primary/10 rounded-full blur-3xl mix-blend-multiply"></div>
+          <div className="text-center sm:text-left relative z-10">
+            <h1 className="text-3xl font-extrabold text-on-surface font-headline dark:text-white tracking-tight">12th Pass Stream Test</h1>
+            <p className="text-sm text-on-surface-variant mt-1 font-medium italic">Defining Your Academic Profile</p>
           </div>
           {/* Hide the user-info/logout area while the user has selected a stream (during a test)
               This prevents users from accidentally signing out mid-test */}
           {!selectedStream && (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 relative z-10">
               <div className="text-right mr-2 hidden sm:block">
-                <div className="text-sm font-semibold">{session?.user?.name ?? 'Guest'}</div>
-                <div className="text-xs opacity-90">{session?.user?.email ?? ''}</div>
-                <div className="text-xs opacity-90 capitalize">{selectedStandard.replace(/-/g, ' ')}</div>
+                <div className="text-sm font-bold text-on-surface">{session?.user?.name ?? 'Guest'}</div>
+                <div className="text-xs text-on-surface-variant">{session?.user?.email ?? ''}</div>
+                <div className="text-xs text-primary font-bold capitalize">{selectedStandard.replace(/-/g, ' ')}</div>
               </div>
               <button
                 onClick={() => signOut({ callbackUrl: '/login' })}
-                className="px-3 py-2 bg-white text-indigo-600 font-semibold rounded-md hover:bg-gray-100"
+                className="px-4 py-2 bg-surface-container-lowest text-error font-bold rounded-full hover:bg-error/10 border border-outline-variant/30 shadow-sm transition-colors"
               >
                 Logout
               </button>
@@ -210,45 +209,50 @@ export default function TwelfthStandardTestPage() {
         {/* Stream selection: if user hasn't selected a stream, show tiles linking to the specific profile tests (Science/Commerce/Arts) */}
         {!selectedStream && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8 items-stretch">
-            <div className="p-8 bg-white rounded-lg shadow-lg text-center flex flex-col justify-between h-72 overflow-hidden">
+            <div className="p-8 bg-surface-container-lowest rounded-[2rem] shadow-xl border border-outline-variant/30 text-center flex flex-col justify-between h-72 overflow-hidden hover:-translate-y-2 hover:shadow-2xl transition-all duration-300 hover:border-primary/50 group relative">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-bl-[80px] -z-10 group-hover:bg-primary/20 transition-colors"></div>
               <div>
-                <h3 className="text-xl font-bold text-black selection:text-white">12th Standard - Science</h3>
-                <p className="text-sm text-gray-600 mt-2 max-h-12 overflow-hidden">Find your path in science degree programs and careers</p>
+                <h3 className="text-xl font-bold text-on-surface font-headline capitalize">Science Profile</h3>
+                <p className="text-sm text-on-surface-variant font-medium mt-3 max-h-12 overflow-hidden leading-relaxed">Find your path in science degree programs and careers</p>
               </div>
               <div className="mt-4 w-full">
-                <Button className="w-full sm:w-64 mx-auto px-4 py-3" onClick={() => {
+                <Button className="w-full sm:w-64 mx-auto px-4 py-3 bg-primary text-white font-bold rounded-full shadow-md hover:bg-primary-dim transition-colors" onClick={() => {
                   localStorage.setItem('careerProfile', JSON.stringify({ class: '12th-standard', stream: 'science' }))
                   setSelectedStream('science')
                 }}>
-                  Start Science Profile Test
+                  Start Test
                 </Button>
               </div>
             </div>
-            <div className="p-8 bg-white rounded-lg shadow-lg text-center flex flex-col justify-between h-72 overflow-hidden">
+            
+            <div className="p-8 bg-surface-container-lowest rounded-[2rem] shadow-xl border border-outline-variant/30 text-center flex flex-col justify-between h-72 overflow-hidden hover:-translate-y-2 hover:shadow-2xl transition-all duration-300 hover:border-tertiary-dim/50 group relative">
+               <div className="absolute top-0 right-0 w-24 h-24 bg-tertiary-dim/10 rounded-bl-[80px] -z-10 group-hover:bg-tertiary-dim/20 transition-colors"></div>
               <div>
-                <h3 className="text-xl font-bold text-black selection:text-white">12th Standard - Commerce</h3>
-                <p className="text-sm text-gray-600 mt-2 max-h-12 overflow-hidden">Explore commerce and management streams</p>
+                <h3 className="text-xl font-bold text-on-surface font-headline capitalize">Commerce Profile</h3>
+                <p className="text-sm text-on-surface-variant font-medium mt-3 max-h-12 overflow-hidden leading-relaxed">Explore commerce and management streams and outcomes</p>
               </div>
               <div className="mt-4 w-full">
-                <Button className="w-full sm:w-64 mx-auto px-4 py-3" onClick={() => {
+                <Button className="w-full sm:w-64 mx-auto px-4 py-3 bg-tertiary-dim text-white font-bold rounded-full shadow-md hover:bg-tertiary transition-colors" onClick={() => {
                   localStorage.setItem('careerProfile', JSON.stringify({ class: '12th-standard', stream: 'commerce' }))
                   setSelectedStream('commerce')
                 }}>
-                  Start Commerce Profile Test
+                  Start Test
                 </Button>
               </div>
             </div>
-            <div className="p-8 bg-white rounded-lg shadow-lg text-center flex flex-col justify-between h-72 overflow-hidden">
+
+            <div className="p-8 bg-surface-container-lowest rounded-[2rem] shadow-xl border border-outline-variant/30 text-center flex flex-col justify-between h-72 overflow-hidden hover:-translate-y-2 hover:shadow-2xl transition-all duration-300 hover:border-secondary-dim/50 group relative">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-secondary-dim/10 rounded-bl-[80px] -z-10 group-hover:bg-secondary-dim/20 transition-colors"></div>
               <div>
-                <h3 className="text-xl font-bold text-black selection:text-white">12th Standard - Arts</h3>
-                <p className="text-sm text-gray-600 mt-2 max-h-12 overflow-hidden">Explore arts and humanities streams</p>
+                <h3 className="text-xl font-bold text-on-surface font-headline capitalize">Arts Profile</h3>
+                <p className="text-sm text-on-surface-variant font-medium mt-3 max-h-12 overflow-hidden leading-relaxed">Explore arts, linguistics, and humanities streams</p>
               </div>
               <div className="mt-4 w-full">
-                <Button className="w-full sm:w-64 mx-auto px-4 py-3" onClick={() => {
+                <Button className="w-full sm:w-64 mx-auto px-4 py-3 bg-secondary-dim text-white font-bold rounded-full shadow-md hover:bg-secondary-dim/80 transition-colors" onClick={() => {
                   localStorage.setItem('careerProfile', JSON.stringify({ class: '12th-standard', stream: 'arts' }))
                   setSelectedStream('arts')
                 }}>
-                  Start Arts Profile Test
+                  Start Test
                 </Button>
               </div>
             </div>
@@ -259,7 +263,7 @@ export default function TwelfthStandardTestPage() {
         <div className="mb-6">
           {/* Inline selected stream: render the stream test when a stream is chosen */}
           {selectedStream && (
-            <div>
+            <div className="bg-surface-container-lowest rounded-3xl p-6 border border-outline-variant/30 shadow-lg">
               {selectedStream === 'science' && <ScienceTest />}
               {selectedStream === 'commerce' && <CommerceTest />}
               {selectedStream === 'arts' && <ArtsTest />}

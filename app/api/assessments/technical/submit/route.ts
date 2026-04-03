@@ -293,6 +293,31 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    // Dispatch Ocean RIASEC report email
+    if (user.email) {
+      import('@/lib/mailer').then(({ sendEmail }) => {
+        const domainRecs = result.domainScores 
+          ? Object.entries(result.domainScores).map(([d, s]) => `<li>${d}: ${s.toFixed(1)}</li>`).join('') 
+          : '';
+          
+        sendEmail({
+          to: user.email!,
+          subject: "Your Ocean & RIASEC Assessment Scores 📊",
+          html: `
+            <p>Hi ${user.name || 'there'},</p>
+            <p>After giving Ocean riasec model the scores should be sent as the email.</p>
+            <h3>Your Average RIASEC Scores:</h3>
+            <ul>${Object.entries(result.riasecAverages).map(([k,v]) => `<li>${k}: ${(v as number).toFixed(1)}</li>`).join('')}</ul>
+            <h3>Your OCEAN Percentages:</h3>
+            <ul>${Object.entries(result.oceanPercentages).map(([k,v]) => `<li>${k}: ${v}%</li>`).join('')}</ul>
+            <h3>Recommendations:</h3>
+            <ul>${domainRecs}</ul>
+            <p><b>Recommended Path:</b> ${result.finalScore.recommendedStream}</p>
+          `
+        }).catch(e => console.error('Failed to send Ocean score email', e));
+      }).catch(err => console.error('Failed to import mailer', err));
+    }
+
     return successResponse(result, 201)
   } catch (error) {
     if (error instanceof z.ZodError) {

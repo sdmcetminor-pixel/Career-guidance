@@ -604,6 +604,20 @@ export async function POST(req: Request) {
               })
             })
           }
+          
+          if (user.email) {
+            import('@/lib/mailer').then(({ sendEmail }) => {
+              sendEmail({
+                to: user.email!,
+                subject: "Your New Pathway Roadmap 🗺️",
+                html: `
+                  <p>Hi ${user.name || 'there'},</p>
+                  <p>As soon as selecting the pathway</p>
+                  <p><b>Progress Tracking pathway roadway:</b> ${streamPretty}</p>
+                `
+              }).catch(e => console.error('Failed to send pathway email:', e));
+            }).catch(e => console.error('Mailer import failed', e));
+          }
         }
       } catch (e) {
         // Persistence should not break the recommendation response

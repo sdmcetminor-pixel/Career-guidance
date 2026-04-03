@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 
 type Video = {
   title: string;
@@ -11,6 +12,7 @@ type QuizQuestion = {
   question: string;
   options: string[];
   correctAnswer: string;
+  topic?: string;
 };
 
 type Quiz = {
@@ -351,6 +353,7 @@ export default function RoadmapPage() {
   const [quizError, setQuizError] = useState<string | null>(null);
   const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
   const [showResults, setShowResults] = useState(false);
+  const { data: session } = useSession();
 
   const fetchVideos = async (
     topic: string,
@@ -465,6 +468,21 @@ export default function RoadmapPage() {
     }));
   };
 
+  const getWeakTopics = () => {
+    if (!quiz) return [];
+    const topicCount: Record<string, number> = {};
+
+    quiz.questions.forEach((q, idx) => {
+      const userAnswer = userAnswers[idx];
+      const isWrong = !userAnswer || userAnswer.charAt(0) !== q.correctAnswer;
+      if (isWrong && q.topic) {
+        topicCount[q.topic] = (topicCount[q.topic] || 0) + 1;
+      }
+    });
+
+    return Object.keys(topicCount).filter(topic => topicCount[topic] >= 2);
+  };
+
   const calculateScore = () => {
     if (!quiz) return 0;
     let correct = 0;
@@ -478,6 +496,8 @@ export default function RoadmapPage() {
     });
     return correct;
   };
+
+  const weakTopics = showResults ? getWeakTopics() : [];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-10">
@@ -566,6 +586,7 @@ export default function RoadmapPage() {
                     <div key={idx} className="border rounded-lg p-4 bg-gray-50">
                       <h3 className="font-semibold mb-4 text-gray-800">
                         {idx + 1}. {q.question}
+                        {q.topic && <span className="ml-2 text-xs font-normal text-blue-600 bg-blue-100 px-2 py-1 rounded">Topic: {q.topic}</span>}
                       </h3>
                       <div className="space-y-3">
                         {q.options.map((option, optIdx) => (
@@ -602,7 +623,26 @@ export default function RoadmapPage() {
 
                   {!showResults && (
                     <button
-                      onClick={() => setShowResults(true)}
+                      onClick={() => {
+                        setShowResults(true);
+                        // Trigger email automatically
+                        if (session?.user?.email) {
+                          const _score = calculateScore();
+                          const _weakTopics = getWeakTopics();
+                          fetch("/api/send-email", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              email: session.user.email,
+                              name: session.user.name || "Student",
+                              type: "test_report",
+                              score: _score,
+                              total: quiz.questions.length,
+                              weakTopics: _weakTopics
+                            })
+                          }).catch(err => console.error("Email API Error:", err));
+                        }
+                      }}
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition mt-6"
                     >
                       Submit Quiz
@@ -610,7 +650,7 @@ export default function RoadmapPage() {
                   )}
 
                   {showResults && (
-                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6">
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-lg p-6 mt-6">
                       <h3 className="font-bold text-2xl text-gray-800 mb-2">
                         Score: {calculateScore()} / {quiz.questions.length}
                       </h3>
@@ -622,6 +662,19 @@ export default function RoadmapPage() {
                           ? "👍 Good job! You understand the basics."
                           : "📚 Keep studying and try again!"}
                       </p>
+
+                      {weakTopics.length > 0 && (
+                        <div className="mt-4 mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800">
+                          <h4 className="font-bold mb-2">⚠️ Skill Gaps Detected</h4>
+                          <p className="text-sm mb-2">You struggled with the following subtopics. We recommend reviewing them:</p>
+                          <ul className="list-disc list-inside bg-yellow-100 p-2 rounded text-sm font-semibold">
+                            {weakTopics.map(topic => (
+                              <li key={topic}>{topic}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
                       <button
                         onClick={() => {
                           setQuiz(null);
