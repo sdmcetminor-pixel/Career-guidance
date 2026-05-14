@@ -105,23 +105,23 @@ export async function POST(request: NextRequest) {
 
     // 3. Generate Quiz
     const randomSeed = Math.random().toString(36).substring(7);
-    const count = 10;
+    const requestedCount = 65; // Request more to ensure we get at least 50 even if it cuts off
+
  const prompt = `
 You are an expert exam paper setter.
 
 The main topic of this test is: ${topic}.
+Random Seed for variety: ${randomSeed} (Ensure you generate completely DIFFERENT questions than any previous test).
 
-Generate EXACTLY ${count} multiple-choice questions heavily focused on explaining ${topic} concepts based on the transcript.
+Generate EXACTLY ${requestedCount} multiple-choice questions focusing on ${topic}.
 
 REQUIREMENTS:
 - Focus predominantly on ${topic}
+- Even if specific concepts are NOT covered in the video transcript, you MUST include questions about them to comprehensively cover the entire ${topic} roadmap.
 - Difficulty: Medium to challenging
 - Cover DIFFERENT subtopics related to ${topic}
 - Avoid repetition
-- Include:
-  - Concept-based questions
-  - Application-based questions
-  - At least 2 scenario-based questions
+- VERY IMPORTANT: Keep questions and options EXTREMELY SHORT (under 10 words) so you do not run out of token limits. You MUST output all ${requestedCount} questions.
 
 IMPORTANT:
 Each question MUST belong to a CLEAR SUBTOPIC of ${topic}.
@@ -175,7 +175,7 @@ ${transcript ? `Transcript:\n${transcript.slice(0, 3000)}` : `[Important Note: N
       body: JSON.stringify({
         model: "meta-llama/Meta-Llama-3-8B-Instruct",
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 2000,
+        max_tokens: 4000,
         temperature: 0.7,
         response_format: { type: "json_object" }
       }),
@@ -205,21 +205,46 @@ ${transcript ? `Transcript:\n${transcript.slice(0, 3000)}` : `[Important Note: N
     const firstBrace = text.indexOf('{');
     const lastBrace = text.lastIndexOf('}');
     
-    if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
-      console.error('[quiz] Hugging Face output not JSON:', text.slice(0, 500));
-      throw new Error('Invalid AI response format');
+    let parsedQuestions = [];
+    let parseSuccess = false;
+
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
+      try {
+        const quizData = JSON.parse(text.slice(firstBrace, lastBrace + 1));
+        if (quizData.questions && Array.isArray(quizData.questions)) {
+          parsedQuestions = quizData.questions;
+          parseSuccess = true;
+        }
+      } catch (e) {
+        console.warn('[quiz] Standard JSON parse failed. Truncated output?');
+      }
     }
 
-    const quizData = JSON.parse(text.slice(firstBrace, lastBrace + 1));
-    if (!quizData.questions || !Array.isArray(quizData.questions)) {
-      throw new Error('Invalid quiz structure');
+    if (!parseSuccess) {
+      console.warn('[quiz] Falling back to regex extraction for questions...');
+      // Extract individual question blocks as best effort
+      const qMatches = text.match(/{\s*"question"\s*:.*?,\s*"options"\s*:.*?,\s*"correctAnswer"\s*:.*?,\s*"topic"\s*:.*?}/gs);
+      if (qMatches) {
+        for (const match of qMatches) {
+          try {
+            parsedQuestions.push(JSON.parse(match));
+          } catch (err) {}
+        }
+      }
     }
 
-    // Randomize
-    quizData.questions = shuffleArray(quizData.questions);
+    if (parsedQuestions.length === 0) {
+      throw new Error('Failed to parse any valid questions from the AI response');
+    }
 
-    console.log(`[quiz] SUCCESS: Generated ${quizData.questions.length} questions from transcript.`);
-    return NextResponse.json(quizData);
+    // Randomize and slice exactly 50 questions
+    parsedQuestions = shuffleArray(parsedQuestions);
+    if (parsedQuestions.length > 50) {
+      parsedQuestions = parsedQuestions.slice(0, 50);
+    }
+
+    console.log(`[quiz] SUCCESS: Returning exactly ${parsedQuestions.length} questions.`);
+    return NextResponse.json({ questions: parsedQuestions });
 
   } catch (error: any) {
     console.error(`[quiz] Unhandled Error: ${error?.message || error}`);

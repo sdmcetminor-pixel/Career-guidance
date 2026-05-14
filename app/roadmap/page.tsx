@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import YouTube from "react-youtube";
 
 type Video = {
   title: string;
@@ -353,7 +355,9 @@ export default function RoadmapPage() {
   const [quizError, setQuizError] = useState<string | null>(null);
   const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
   const [showResults, setShowResults] = useState(false);
+  const [activeVideoToWatch, setActiveVideoToWatch] = useState<RecommendedVideo | null>(null);
   const { data: session } = useSession();
+  const router = useRouter();
 
   const fetchVideos = async (
     topic: string,
@@ -427,6 +431,7 @@ export default function RoadmapPage() {
     setUserAnswers({});
     setVideos([]);
     setNextPageToken(null);
+    setActiveVideoToWatch(null);
     fetchVideos(node.title, { refresh: true });
   };
 
@@ -556,18 +561,6 @@ export default function RoadmapPage() {
           ) : quiz && selectedVideo ? (
             // QUIZ VIEW
             <div>
-              <button
-                onClick={() => {
-                  setQuiz(null);
-                  setUserAnswers({});
-                  setShowResults(false);
-                  setSelectedVideo(null);
-                }}
-                className="mb-4 text-blue-600 hover:text-blue-800 underline text-sm font-semibold"
-              >
-                ← Back to Videos
-              </button>
-
               <h2 className="text-3xl font-bold mb-2">
                 {selectedVideo.title} – Quiz
               </h2>
@@ -675,17 +668,25 @@ export default function RoadmapPage() {
                         </div>
                       )}
 
-                      <button
-                        onClick={() => {
-                          setQuiz(null);
-                          setUserAnswers({});
-                          setShowResults(false);
-                          setSelectedVideo(null);
-                        }}
-                        className="w-full bg-gray-600 hover:bg-gray-700 text-white font-semibold py-2 px-4 rounded-lg transition"
-                      >
-                        Try Another Video
-                      </button>
+                      <div className="flex flex-col sm:flex-row gap-4 mt-6">
+                        {roadmapData.findIndex(n => n.id === selectedNode.id) < roadmapData.length - 1 && (
+                          <button
+                            onClick={() => {
+                              const nextIdx = roadmapData.findIndex(n => n.id === selectedNode.id) + 1;
+                              handleSelectNode(roadmapData[nextIdx]);
+                            }}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition text-center"
+                          >
+                            Next Topic: {roadmapData[roadmapData.findIndex(n => n.id === selectedNode.id) + 1].title} →
+                          </button>
+                        )}
+                        <button
+                          onClick={() => router.push("/career-insights")}
+                          className="flex-1 bg-gray-800 hover:bg-gray-900 text-white font-semibold py-3 px-4 rounded-lg transition text-center"
+                        >
+                          Explore Pathways
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -723,28 +724,50 @@ export default function RoadmapPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {videos.map((video, idx) => {
                   const embedUrl = `https://www.youtube.com/embed/${video.videoId}`;
+                  const isLocked = activeVideoToWatch && activeVideoToWatch.videoId !== video.videoId;
+                  const isActive = activeVideoToWatch && activeVideoToWatch.videoId === video.videoId;
+
                   return (
                   <div
                     key={idx}
-                    className="rounded-xl border bg-gray-50 p-4 hover:shadow-md transition flex flex-col"
+                    className={`rounded-xl border bg-gray-50 p-4 transition flex flex-col ${
+                      isLocked ? "opacity-50 pointer-events-none" : "hover:shadow-md"
+                    }`}
                   >
                     <p className="font-semibold mb-3 text-gray-800">
                       {video.title}
                     </p>
-                    <iframe
-                      src={embedUrl}
-                      className="w-full h-48 rounded-lg mb-4 flex-1"
-                      allowFullScreen
-                    />
-                    <button
-                      onClick={() => handleGenerateQuiz({ title: video.title, url: embedUrl })}
-                      disabled={loadingQuiz && selectedVideo?.url === embedUrl}
-                      className="w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg text-sm transition"
-                    >
-                      {loadingQuiz && selectedVideo?.url === embedUrl
-                        ? "⏳ Generating Quiz..."
-                        : "📝 Generate Quiz"}
-                    </button>
+                    {!isActive ? (
+                      <iframe
+                        src={embedUrl}
+                        className="w-full h-48 rounded-lg mb-4 flex-1"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <YouTube
+                        videoId={video.videoId}
+                        opts={{ height: '100%', width: '100%', playerVars: { autoplay: 1 } }}
+                        onEnd={() => handleGenerateQuiz({ title: video.title, url: embedUrl })}
+                        className="w-full h-48 rounded-lg mb-4 flex-1"
+                        iframeClassName="w-full h-full rounded-lg"
+                      />
+                    )}
+                    {!activeVideoToWatch ? (
+                      <button
+                        onClick={() => setActiveVideoToWatch(video)}
+                        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg text-sm transition"
+                      >
+                        📺 Select & Watch
+                      </button>
+                    ) : isActive && loadingQuiz && selectedVideo?.url === embedUrl ? (
+                      <div className="w-full bg-gray-200 text-gray-600 font-semibold py-2 px-4 rounded-lg text-sm text-center">
+                        ⏳ Generating Quiz...
+                      </div>
+                    ) : isActive ? (
+                      <div className="w-full bg-green-100 text-green-700 font-semibold py-2 px-4 rounded-lg text-sm text-center">
+                        ▶️ Playing... Quiz will auto-generate when video finishes
+                      </div>
+                    ) : null}
                   </div>
                   );
                 })}
