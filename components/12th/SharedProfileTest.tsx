@@ -65,12 +65,13 @@ const SharedProfileTest: FC<SharedProps> = ({ title, headerColorClass = 'bg-indi
   const [saveStatus, setSaveStatus] = useState<{ state: 'idle' | 'saving' | 'saved' | 'error'; message?: string; assessmentId?: string }>(
     { state: 'idle' }
   )
+  const [shuffledQuestions] = useState(() => [...PROFILE_QUESTIONS].sort(() => Math.random() - 0.5))
   // Timer for the quiz (15 minutes = 900 seconds)
   const QUIZ_DURATION_SECONDS = 15 * 60
   const [secondsLeft, setSecondsLeft] = useState<number>(QUIZ_DURATION_SECONDS)
 
-  const totalQuestions = PROFILE_QUESTIONS.length
-  const currentQuestion = useMemo(() => PROFILE_QUESTIONS[currentQIndex], [currentQIndex])
+  const totalQuestions = shuffledQuestions.length
+  const currentQuestion = useMemo(() => shuffledQuestions[currentQIndex], [currentQIndex, shuffledQuestions])
   const isLastQuestion = currentQIndex === totalQuestions - 1
   const labels = currentQuestion.factor === 'RIASEC' ? SCALES.Interest.labels : SCALES.Agreement.labels
 
@@ -128,7 +129,7 @@ const SharedProfileTest: FC<SharedProps> = ({ title, headerColorClass = 'bg-indi
       // Save to DB (Supabase via Prisma)
       try {
         const profileAnswers: Record<string, number | null> = {}
-        for (const q of PROFILE_QUESTIONS) {
+        for (const q of shuffledQuestions) {
           const v = answers[q.id]
           profileAnswers[q.id] = v === undefined || v === -1 ? null : v
         }
@@ -149,7 +150,14 @@ const SharedProfileTest: FC<SharedProps> = ({ title, headerColorClass = 'bg-indi
           setSaveStatus({ state: 'saved', assessmentId: json?.assessmentId, message: 'Marks saved.' })
         } else {
           const txt = await res.text().catch(() => '')
-          setSaveStatus({ state: 'error', message: txt || 'Failed to save marks.' })
+          let msg = 'Failed to save marks.'
+          try {
+            const json = JSON.parse(txt)
+            if (json && typeof json.error === 'string') msg = json.error
+          } catch (e) {
+            if (txt) msg = txt
+          }
+          setSaveStatus({ state: 'error', message: msg })
         }
       } catch (e) {
         setSaveStatus({ state: 'error', message: 'Network error saving marks.' })

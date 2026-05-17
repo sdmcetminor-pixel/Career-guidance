@@ -7,6 +7,7 @@ import {
   successResponse,
   unauthorizedResponse,
 } from '@/lib/api-helpers'
+import { sendEmail } from '@/lib/mailer'
 import {
   APTITUDE_QUESTIONS,
   PROFILE_QUESTIONS,
@@ -143,12 +144,11 @@ export async function POST(request: NextRequest) {
         })
 
         if (assessment) {
-          await Promise.all([
-            tx.assessmentAnswer.deleteMany({ where: { assessmentId } }),
-            tx.aptitudeScore.deleteMany({ where: { assessmentId } }),
-            tx.profileScore.deleteMany({ where: { assessmentId } }),
-            tx.finalScore.deleteMany({ where: { assessmentId } }),
-          ])
+          // Sequential deletes are safer in Prisma transactions
+          await tx.assessmentAnswer.deleteMany({ where: { assessmentId } })
+          await tx.aptitudeScore.deleteMany({ where: { assessmentId } })
+          await tx.profileScore.deleteMany({ where: { assessmentId } })
+          await tx.finalScore.deleteMany({ where: { assessmentId } })
 
           assessment = await tx.assessment.update({
             where: { id: assessmentId },
@@ -253,14 +253,57 @@ export async function POST(request: NextRequest) {
         aptitudeBreakdown,
         profileBreakdown,
       }
+    }, {
+      maxWait: 15000,
+      timeout: 30000,
     })
+
+    console.log('10th assessment save success:', result.assessmentId)
+
+    // Send assessment report email
+    if (user.email) {
+      try {
+        const aptList = aptitudeRows.map(r => `<li>${r.section}: ${r.percentage}% (${r.correctCount}/${r.totalQuestions})</li>`).join('')
+        const profList = profileRows.map(r => `<li>${r.factor}: ${r.percentage}%</li>`).join('')
+        
+        await sendEmail({
+          to: user.email!,
+          subject: "Your 10th Standard Career Assessment Report 📊",
+          html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px;">
+              <h2 style="color: #2563eb;">Career Assessment Report</h2>
+              <p>Hi ${user.name || 'there'},</p>
+              <p>Congratulations on completing your career assessment! Here is your detailed breakdown:</p>
+              
+              <div style="background: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                <h3 style="margin-top: 0;">Top Recommendation</h3>
+                <p style="font-size: 24px; font-weight: bold; color: #1e40af; margin: 5px 0;">${final.recommendedStream}</p>
+                <p>Confidence Level: <strong>${final.confidence}%</strong></p>
+              </div>
+
+              <h3>Aptitude Scores</h3>
+              <ul>${aptList}</ul>
+
+              <h3>Profile Dimensions (Personality)</h3>
+              <ul>${profList}</ul>
+
+              <p>Visit your dashboard to explore detailed roadmaps for your recommended stream.</p>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+              <p style="font-size: 12px; color: #64748b;">This is an automated report from your Career Guidance App.</p>
+            </div>
+          `
+        })
+      } catch (e) {
+        console.error('Failed to send 10th assessment email:', e)
+      }
+    }
 
     return successResponse(result, 201)
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse(error.errors[0]?.message || 'Invalid input', 400)
     }
-    console.error('10th assessment submit error:', error)
-    return errorResponse('Failed to save assessment results', 500)
+    console.error('10th assessment submit error details:', error)
+    return errorResponse('Failed to save assessment results: ' + (error instanceof Error ? error.message : 'Unknown error'), 500)
   }
 }

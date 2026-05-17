@@ -7,6 +7,7 @@ import {
   successResponse,
   unauthorizedResponse,
 } from '@/lib/api-helpers'
+import { sendEmail } from '@/lib/mailer'
 
 const submitSchema = z.object({
   assessmentId: z.string().min(1).optional(),
@@ -184,11 +185,10 @@ export async function POST(request: NextRequest) {
         assessment = await tx.assessment.findFirst({ where: { id: assessmentId, userId: user.id } })
 
         if (assessment) {
-          await Promise.all([
-            tx.assessmentAnswer.deleteMany({ where: { assessmentId } }),
-            tx.profileScore.deleteMany({ where: { assessmentId } }),
-            tx.finalScore.deleteMany({ where: { assessmentId } }),
-          ])
+          // Sequential deletes are safer in Prisma transactions on Windows
+          await tx.assessmentAnswer.deleteMany({ where: { assessmentId } })
+          await tx.profileScore.deleteMany({ where: { assessmentId } })
+          await tx.finalScore.deleteMany({ where: { assessmentId } })
 
           assessment = await tx.assessment.update({
             where: { id: assessmentId },
@@ -291,31 +291,51 @@ export async function POST(request: NextRequest) {
         oceanPercentages,
         domainScores,
       }
+    }, {
+      maxWait: 15000,
+      timeout: 30000,
     })
 
     // Dispatch Ocean RIASEC report email
     if (user.email) {
-      import('@/lib/mailer').then(({ sendEmail }) => {
-        const domainRecs = result.domainScores 
-          ? Object.entries(result.domainScores).map(([d, s]) => `<li>${d}: ${s.toFixed(1)}</li>`).join('') 
-          : '';
+      try {
+        const domainRecs = rankedDomains.slice(0, 3).map(r => `<li>${r.name}: ${r.score.toFixed(1)}</li>`).join('')
+        const riasecList = Object.entries(result.riasecAverages).map(([k,v]) => `<li>${k}: ${(v as number).toFixed(1)}</li>`).join('')
+        const oceanList = Object.entries(result.oceanPercentages).map(([k,v]) => `<li>${k}: ${v}%</li>`).join('')
           
-        sendEmail({
+        await sendEmail({
           to: user.email!,
-          subject: "Your Ocean & RIASEC Assessment Scores 📊",
+          subject: "Your Technical Career Assessment Report 📊",
           html: `
-            <p>Hi ${user.name || 'there'},</p>
-            <p>After giving Ocean riasec model the scores should be sent as the email.</p>
-            <h3>Your Average RIASEC Scores:</h3>
-            <ul>${Object.entries(result.riasecAverages).map(([k,v]) => `<li>${k}: ${(v as number).toFixed(1)}</li>`).join('')}</ul>
-            <h3>Your OCEAN Percentages:</h3>
-            <ul>${Object.entries(result.oceanPercentages).map(([k,v]) => `<li>${k}: ${v}%</li>`).join('')}</ul>
-            <h3>Recommendations:</h3>
-            <ul>${domainRecs}</ul>
-            <p><b>Recommended Path:</b> ${result.finalScore.recommendedStream}</p>
+            <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px;">
+              <h2 style="color: #2563eb;">Technical Career Report</h2>
+              <p>Hi ${user.name || 'there'},</p>
+              <p>Your technical profile has been analyzed based on the OCEAN and RIASEC models. Here are your results:</p>
+              
+              <div style="background: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                <h3 style="margin-top: 0;">Top Recommended Domain</h3>
+                <p style="font-size: 24px; font-weight: bold; color: #1e40af; margin: 5px 0;">${top?.name || 'Technical'}</p>
+                <p>Confidence: <strong>${confidence}%</strong> | Path Flexibility: <strong>${flexibility}%</strong></p>
+              </div>
+
+              <h3>Domain Recommendations</h3>
+              <ul>${domainRecs}</ul>
+
+              <h3>RIASEC Model Scores (Interests)</h3>
+              <ul>${riasecList}</ul>
+
+              <h3>OCEAN Percentages (Personality)</h3>
+              <ul>${oceanList}</ul>
+
+              <p>Visit your dashboard to explore the learning roadmap for <strong>${top?.name}</strong>.</p>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+              <p style="font-size: 12px; color: #64748b;">This is an automated report from your Career Guidance App.</p>
+            </div>
           `
-        }).catch(e => console.error('Failed to send Ocean score email', e));
-      }).catch(err => console.error('Failed to import mailer', err));
+        })
+      } catch (e) {
+        console.error('Failed to send technical assessment email:', e)
+      }
     }
 
     return successResponse(result, 201)
@@ -323,7 +343,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return errorResponse(error.errors[0]?.message || 'Invalid input', 400)
     }
-    console.error('technical assessment submit error:', error)
-    return errorResponse('Failed to save assessment results', 500)
+    console.error('technical assessment submit error details:', error)
+    return errorResponse('Failed to save assessment results: ' + (error instanceof Error ? error.message : 'Unknown error'), 500)
   }
 }

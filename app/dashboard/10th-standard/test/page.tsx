@@ -222,6 +222,8 @@ export default function TenthStandardAssessment() {
   const [aiError, setAIError] = useState<string | null>(null)
   const [timeLeft, setTimeLeft] = useState<number>(TOTAL_TIME_SECONDS)
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number>(0)
+  const [shuffledAptitude, setShuffledAptitude] = useState<IAptitudeQuestion[]>([])
+  const [shuffledProfile, setShuffledProfile] = useState<IProfileQuestion[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const { data: session } = useSession()
   const [selectedStandard, setSelectedStandard] = useState<string>('10th-standard')
@@ -418,6 +420,8 @@ export default function TenthStandardAssessment() {
   const handleAptitudeStart = () => {
     // Start a fresh attempt. We intentionally DO NOT set an assessment id here.
     // The DB id will be created on submit and returned by the API.
+    setShuffledAptitude([...APTITUDE_QUESTIONS].sort(() => Math.random() - 0.5))
+    setShuffledProfile([...PROFILE_QUESTIONS].sort(() => Math.random() - 0.5))
     setAssessmentId(null)
     setSaveError(null)
     setStep(0.5)
@@ -503,7 +507,7 @@ export default function TenthStandardAssessment() {
   )
 
   const renderTestInterface = (isAptitude: boolean) => {
-    const questions = isAptitude ? APTITUDE_QUESTIONS : PROFILE_QUESTIONS
+    const questions = isAptitude ? (shuffledAptitude.length ? shuffledAptitude : APTITUDE_QUESTIONS) : (shuffledProfile.length ? shuffledProfile : PROFILE_QUESTIONS)
     const answers = isAptitude ? aptitudeAnswers : profileAnswers
     const handleSelect = isAptitude ? handleAptitudeAnswerSelect : handleProfileAnswerSelect
 
@@ -780,15 +784,6 @@ export default function TenthStandardAssessment() {
       </div>
     )
   }
-
-  
-  <div className="flex gap-4 mt-8 justify-center">
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition shadow-md"
-          >Dashboard
-          </button>
-        </div>
 
   let content
   const currentStepText = `Step ${Math.ceil(step) + 1} of 4`

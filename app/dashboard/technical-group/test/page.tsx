@@ -10,7 +10,7 @@ import { ArrowLeft, CheckCircle2 } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 
 // 33 Questions based on RIASEC + OCEAN for CSE Domain Selection
-const questions = [
+const INITIAL_QUESTIONS = [
   // RIASEC Realistic (1-6)
   {
     id: 1,
@@ -263,6 +263,7 @@ const DOMAIN_PROFILES = {
 }
 
 export default function TechnicalGroupTestPage() {
+  const [questions] = useState(() => [...INITIAL_QUESTIONS].sort(() => Math.random() - 0.5))
   const router = useRouter()
   const { toast } = useToast()
   const [answers, setAnswers] = useState<{ [key: number]: number }>({})
@@ -425,7 +426,7 @@ export default function TechnicalGroupTestPage() {
     setTimeout(() => {
       router.push(`/dashboard/technical-group/result?specialization=${topDomain?.domain ?? ''}`)
     }, 800)
-  }, [answers, router, toast, remainingSeconds, TOTAL_SECONDS])
+  }, [answers, router, toast, remainingSeconds, TOTAL_SECONDS, questions])
 
   const progress = ((currentQuestion + 1) / questions.length) * 100
   const question = questions[currentQuestion]
