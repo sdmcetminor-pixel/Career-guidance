@@ -7,6 +7,7 @@ import {
   successResponse,
   unauthorizedResponse,
 } from '@/lib/api-helpers'
+import { sendEmail } from '@/lib/mailer'
 import { PROFILE_QUESTIONS, type IProfileQuestion } from '@/lib/constants'
 
 const submitSchema = z.object({
@@ -207,11 +208,10 @@ export async function POST(request: NextRequest) {
         assessment = await tx.assessment.findFirst({ where: { id: assessmentId, userId: user.id } })
 
         if (assessment) {
-          await Promise.all([
-            tx.assessmentAnswer.deleteMany({ where: { assessmentId } }),
-            tx.profileScore.deleteMany({ where: { assessmentId } }),
-            tx.finalScore.deleteMany({ where: { assessmentId } }),
-          ])
+          // Sequential deletes are safer in Prisma transactions on Windows
+          await tx.assessmentAnswer.deleteMany({ where: { assessmentId } })
+          await tx.profileScore.deleteMany({ where: { assessmentId } })
+          await tx.finalScore.deleteMany({ where: { assessmentId } })
 
           assessment = await tx.assessment.update({
             where: { id: assessmentId },
@@ -297,14 +297,55 @@ export async function POST(request: NextRequest) {
         finalScore,
         profileBreakdown,
       }
+    }, {
+      maxWait: 15000,
+      timeout: 30000,
     })
+
+    // Send assessment report email
+    if (user.email) {
+      try {
+        const profList = profileRows.map(r => `<li>${r.factor}: ${r.percentage}%</li>`).join('')
+        const clusterList = clusterFits.slice(0, 3).map(c => `<li>${c.cluster}: ${c.score}%</li>`).join('')
+        
+        await sendEmail({
+          to: user.email!,
+          subject: "Your 12th Standard Career Assessment Report 📊",
+          html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: auto; border: 1px solid #e2e8f0; padding: 20px; border-radius: 8px;">
+              <h2 style="color: #2563eb;">12th Pass Career Report</h2>
+              <p>Hi ${user.name || 'there'},</p>
+              <p>Your career profile for the <strong>${data.region.toUpperCase()}</strong> stream has been analyzed. Here are your top career clusters:</p>
+              
+              <div style="background: #f8fafc; padding: 15px; border-radius: 6px; margin: 20px 0;">
+                <h3 style="margin-top: 0;">Top Recommendation</h3>
+                <p style="font-size: 24px; font-weight: bold; color: #1e40af; margin: 5px 0;">${top?.cluster || 'Engineering'}</p>
+                <p>Confidence: <strong>${confidence}%</strong> | Flexibility: <strong>${flexibility}%</strong></p>
+              </div>
+
+              <h3>Top Cluster Matches</h3>
+              <ul>${clusterList}</ul>
+
+              <h3>Personality Profile (OCEAN/RIASEC)</h3>
+              <ul>${profList}</ul>
+
+              <p>Explore your personalized learning roadmap on the dashboard to start building your career!</p>
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+              <p style="font-size: 12px; color: #64748b;">This is an automated report from your Career Guidance App.</p>
+            </div>
+          `
+        })
+      } catch (e) {
+        console.error('Failed to send 12th assessment email:', e)
+      }
+    }
 
     return successResponse(result, 201)
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse(error.errors[0]?.message || 'Invalid input', 400)
     }
-    console.error('12th assessment submit error:', error)
-    return errorResponse('Failed to save assessment results', 500)
+    console.error('12th assessment submit error details:', error)
+    return errorResponse('Failed to save assessment results: ' + (error instanceof Error ? error.message : 'Unknown error'), 500)
   }
 }

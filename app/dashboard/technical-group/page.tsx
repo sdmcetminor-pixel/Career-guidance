@@ -60,7 +60,7 @@ export default function TechnicalGroupPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => router.push('/roadmap')}
+                  onClick={() => router.push('/dashboard/technical-group/software-pathways')}
                   className="rounded-full border-primary/50 text-primary hover:bg-primary hover:text-white transition-colors"
                 >
                   View Pathways
@@ -78,6 +78,16 @@ export default function TechnicalGroupPage() {
               <p className="text-sm text-on-surface-variant leading-relaxed">
                 Data analysis, machine learning, artificial intelligence, and big data technologies.
               </p>
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push('/dashboard/technical-group/data-pathways')}
+                  className="rounded-full border-primary/50 text-primary hover:bg-primary hover:text-white transition-colors"
+                >
+                  View Pathways
+                </Button>
+              </div>
             </CardContent>
           </Card>
 
@@ -90,6 +100,16 @@ export default function TechnicalGroupPage() {
               <p className="text-sm text-on-surface-variant leading-relaxed">
                 Network security, ethical hacking, information security, and digital forensics.
               </p>
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => router.push('/roadmap?pathway=cybersecurity')}
+                  className="rounded-full border-primary/50 text-primary hover:bg-primary hover:text-white transition-colors"
+                >
+                  View Pathways
+                </Button>
+              </div>
             </CardContent>
           </Card>
 

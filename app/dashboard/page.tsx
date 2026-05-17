@@ -23,6 +23,13 @@ export default function DashboardPage() {
     return () => document.removeEventListener('click', onDoc)
   }, [])
 
+  // Redirect admin users to admin dashboard
+  useEffect(() => {
+    if (session?.user?.role === 'ADMIN') {
+      router.push('/admin')
+    }
+  }, [session, router])
+
   const initials = (name?: string | null, email?: string | null) => {
     if (name) return name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
     if (email) return (email[0] || 'U').toUpperCase()
@@ -122,6 +129,17 @@ export default function DashboardPage() {
           >
             View My Dashboard
           </Button>
+          {session?.user?.role === 'ADMIN' && (
+            <Button
+              onClick={() => router.push('/admin')}
+              variant="outline"
+              className="mb-4 ml-3 rounded-full shadow-sm font-bold px-8 relative z-10 border-primary text-primary hover:bg-primary/10"
+              size="lg"
+            >
+              <Shield className="h-4 w-4 mr-2" />
+              Admin Panel
+            </Button>
+          )}
         </div>
 
         {/* Cards Grid - Fully Responsive */}

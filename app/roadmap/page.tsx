@@ -1,14 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import YouTube from "react-youtube";
-
-type Video = {
-  title: string;
-  url: string;
-};
+import { Video, RoadmapNode, fullStackRoadmapData, frontendRoadmapData, backendRoadmapData, devopsRoadmapData, dataEngineerRoadmapData, machineLearningRoadmapData, aiEngineerRoadmapData, cybersecurityRoadmapData } from "./data";
 
 type QuizQuestion = {
   question: string;
@@ -26,324 +23,46 @@ type RecommendedVideo = {
   videoId: string;
 };
 
-type RoadmapNode = {
-  id: string;
-  title: string;
-  description: string;
-  videos: Video[];
-};
+function RoadmapContent() {
+  const searchParams = useSearchParams();
+  const pathway = searchParams?.get("pathway");
 
-const roadmapData: RoadmapNode[] = [
-  {
-    id: "html",
-    title: "HTML",
-    description: "Learn how to structure web pages using HTML.",
-    videos: [
-      {
-        title: "HTML Tutorial for Beginners",
-        url: "https://www.youtube.com/embed/FQdaUv95mR8",
-      },
-      {
-        title: "Forms & Semantic HTML",
-        url: "https://www.youtube.com/embed/PlxWf493en4",
-      },
-    ],
-  },
-  {
-    id: "css",
-    title: "CSS",
-    description: "Style web pages and create beautiful layouts.",
-    videos: [
-      {
-        title: "CSS Full Course",
-        url: "https://www.youtube.com/embed/yfoY53QXEnI",
-      },
-    ],
-  },
-  {
-    id: "javascript",
-    title: "JavaScript",
-    description: "Add logic and interactivity to websites.",
-    videos: [
-      {
-        title: "JavaScript Basics",
-        url: "https://www.youtube.com/embed/W6NZfCO5SIk",
-      },
-    ],
-  },
-  {
-    id: "react",
-    title: "React",
-    description: "Build scalable, component-based user interfaces.",
-    videos: [
-      {
-        title: "React Full Course",
-        url: "https://www.youtube.com/embed/bMknfKXIFA8",
-      },
-      {
-        title: "React Crash Course",
-        url: "https://www.youtube.com/embed/w7ejDZ8SWv8",
-      },
-    ],
-  },
-  {
-    id: "npm",
-    title: "NPM",
-    description: "Learn package management for JavaScript projects.",
-    videos: [
-      {
-        title: "NPM Tutorial 1",
-        url: "https://www.youtube.com/embed/jHDhaSSKmB0",
-      },
-      {
-        title: "NPM Tutorial 2",
-        url: "https://www.youtube.com/embed/P3aKRdUyr0s",
-      },
-    ],
-  },
-  {
-    id: "tailwind",
-    title: "Tailwind CSS",
-    description: "Style modern interfaces quickly using utility classes.",
-    videos: [
-      {
-        title: "Tailwind CSS Tutorial 1",
-        url: "https://www.youtube.com/embed/dFgzHOX84xQ",
-      },
-      {
-        title: "Tailwind CSS Tutorial 2",
-        url: "https://www.youtube.com/embed/lCxcTsOHrjo",
-      },
-    ],
-  },
-  {
-    id: "git",
-    title: "Git",
-    description: "Master version control basics and team workflows.",
-    videos: [
-      {
-        title: "Git Tutorial 1",
-        url: "https://www.youtube.com/embed/apGV9Kg7ics",
-      },
-      {
-        title: "Git Tutorial 2",
-        url: "https://www.youtube.com/embed/RGOj5yH7evk",
-      },
-    ],
-  },
-  {
-    id: "github",
-    title: "GitHub",
-    description: "Collaborate, host repositories, and manage projects.",
-    videos: [
-      {
-        title: "GitHub Tutorial 1",
-        url: "https://www.youtube.com/embed/w3jLJU7DT5E",
-      },
-      {
-        title: "GitHub Tutorial 2",
-        url: "https://www.youtube.com/embed/iv8rSLsi1xo",
-      },
-    ],
-  },
-  {
-    id: "nodejs",
-    title: "Node.js",
-    description: "Build backend applications using JavaScript runtime.",
-    videos: [
-      {
-        title: "Node.js Tutorial 1",
-        url: "https://www.youtube.com/embed/TlB_eWDSMt4",
-      },
-      {
-        title: "Node.js Tutorial 2",
-        url: "https://www.youtube.com/embed/Oe421EPjeBE",
-      },
-    ],
-  },
-  {
-    id: "cli",
-    title: "CLI Apps",
-    description: "Create command-line tools and developer utilities.",
-    videos: [
-      {
-        title: "CLI Apps Tutorial 1",
-        url: "https://www.youtube.com/embed/9IJ5nX5z5qM",
-      },
-      {
-        title: "CLI Apps Tutorial 2",
-        url: "https://www.youtube.com/embed/2d7s3spWAzo",
-      },
-    ],
-  },
-  {
-    id: "postgres",
-    title: "PostgreSQL",
-    description: "Learn relational databases and SQL fundamentals.",
-    videos: [
-      {
-        title: "PostgreSQL Tutorial 1",
-        url: "https://www.youtube.com/embed/qw--VYLpxG4",
-      },
-      {
-        title: "PostgreSQL Tutorial 2",
-        url: "https://www.youtube.com/embed/SpfIwlAYaKk",
-      },
-    ],
-  },
-  {
-    id: "crud",
-    title: "CRUD Apps",
-    description: "Build create, read, update, and delete applications.",
-    videos: [
-      {
-        title: "CRUD Apps Tutorial 1",
-        url: "https://www.youtube.com/embed/2eqyQy0vZ2Y",
-      },
-      {
-        title: "CRUD Apps Tutorial 2",
-        url: "https://www.youtube.com/embed/1NrHkjlWVhM",
-      },
-    ],
-  },
-  {
-    id: "redis",
-    title: "Redis",
-    description: "Use in-memory data stores for caching and speed.",
-    videos: [
-      {
-        title: "Redis Tutorial 1",
-        url: "https://www.youtube.com/embed/Hbt56gFj998",
-      },
-      {
-        title: "Redis Tutorial 2",
-        url: "https://www.youtube.com/embed/jgpVdJB2sKQ",
-      },
-    ],
-  },
-  {
-    id: "jwt",
-    title: "JWT Authentication",
-    description: "Secure APIs and sessions using token-based auth.",
-    videos: [
-      {
-        title: "JWT Authentication Tutorial 1",
-        url: "https://www.youtube.com/embed/7Q17ubqLfaM",
-      },
-      {
-        title: "JWT Authentication Tutorial 2",
-        url: "https://www.youtube.com/embed/mbsmsi7l3r4",
-      },
-    ],
-  },
-  {
-    id: "rest",
-    title: "REST APIs",
-    description: "Design and build API endpoints for web apps.",
-    videos: [
-      {
-        title: "REST APIs Tutorial 1",
-        url: "https://www.youtube.com/embed/lsMQRaeKNDk",
-      },
-      {
-        title: "REST APIs Tutorial 2",
-        url: "https://www.youtube.com/embed/rtWH70_MMHM",
-      },
-    ],
-  },
-  {
-    id: "linux",
-    title: "Linux Basics",
-    description: "Understand terminal, files, permissions, and processes.",
-    videos: [
-      {
-        title: "Linux Basics Tutorial 1",
-        url: "https://www.youtube.com/embed/IVquJh3DXUA",
-      },
-      {
-        title: "Linux Basics Tutorial 2",
-        url: "https://www.youtube.com/embed/sWbUDq4S6Y8",
-      },
-    ],
-  },
-  {
-    id: "aws",
-    title: "Basic AWS Services",
-    description: "Get started with core cloud services on AWS.",
-    videos: [
-      {
-        title: "Basic AWS Services Tutorial 1",
-        url: "https://www.youtube.com/embed/ulprqHHWlng",
-      },
-      {
-        title: "Basic AWS Services Tutorial 2",
-        url: "https://www.youtube.com/embed/k1RI5locZE4",
-      },
-    ],
-  },
-  {
-    id: "ansible",
-    title: "Ansible",
-    description: "Automate provisioning and configuration tasks.",
-    videos: [
-      {
-        title: "Ansible Tutorial 1",
-        url: "https://www.youtube.com/embed/1id6ERvfozo",
-      },
-      {
-        title: "Ansible Tutorial 2",
-        url: "https://www.youtube.com/embed/goclfp6a2IQ",
-      },
-    ],
-  },
-  {
-    id: "github-actions",
-    title: "GitHub Actions",
-    description: "Set up CI/CD workflows for automated delivery.",
-    videos: [
-      {
-        title: "GitHub Actions Tutorial 1",
-        url: "https://www.youtube.com/embed/R8_veQiYBjI",
-      },
-      {
-        title: "GitHub Actions Tutorial 2",
-        url: "https://www.youtube.com/embed/mFFXuXjVgkU",
-      },
-    ],
-  },
-  {
-    id: "monitoring",
-    title: "Monitoring",
-    description: "Track application health, logs, and metrics.",
-    videos: [
-      {
-        title: "Monitoring Tutorial 1",
-        url: "https://www.youtube.com/embed/nm2uG2b7Q3A",
-      },
-      {
-        title: "Monitoring Tutorial 2",
-        url: "https://www.youtube.com/embed/2lP1o9t1Uj4",
-      },
-    ],
-  },
-  {
-    id: "terraform",
-    title: "Terraform",
-    description: "Manage cloud infrastructure as code.",
-    videos: [
-      {
-        title: "Terraform Tutorial 1",
-        url: "https://www.youtube.com/embed/l5k1ai_GBDE",
-      },
-      {
-        title: "Terraform Tutorial 2",
-        url: "https://www.youtube.com/embed/SLB_c_ayRMo",
-      },
-    ],
-  },
-];
+  let roadmapData = fullStackRoadmapData;
+  let title = "Full Stack Developer Learning Journey";
 
-export default function RoadmapPage() {
+  if (pathway === "frontend") {
+    roadmapData = frontendRoadmapData;
+    title = "Frontend Developer Learning Journey";
+  } else if (pathway === "devops") {
+    roadmapData = devopsRoadmapData;
+    title = "DevOps Learning Journey";
+  } else if (pathway === "backend") {
+    roadmapData = backendRoadmapData;
+    title = "Backend Developer Learning Journey";
+  } else if (pathway === "data-engineer") {
+    roadmapData = dataEngineerRoadmapData;
+    title = "Data Engineer Learning Journey";
+  } else if (pathway === "machine-learning") {
+    roadmapData = machineLearningRoadmapData;
+    title = "Machine Learning Learning Journey";
+  } else if (pathway === "ai-engineer") {
+    roadmapData = aiEngineerRoadmapData;
+    title = "AI Engineer Learning Journey";
+  } else if (pathway === "cybersecurity") {
+    roadmapData = cybersecurityRoadmapData;
+    title = "Cybersecurity Expert Learning Journey";
+  }
+
+  let domainSelectionUrl = "/dashboard/technical-group";
+  const swPathways = ["frontend", "backend", "devops", "full-stack"];
+  const dataPathways = ["data-engineer", "machine-learning", "ai-engineer"];
+  
+  if (swPathways.includes(pathway || "full-stack")) {
+    domainSelectionUrl = "/dashboard/technical-group/software-pathways";
+  } else if (dataPathways.includes(pathway || "")) {
+    domainSelectionUrl = "/dashboard/technical-group/data-pathways";
+  }
+
   const [selectedNode, setSelectedNode] = useState<RoadmapNode | null>(null);
   const [videos, setVideos] = useState<RecommendedVideo[]>([]);
   const [videosError, setVideosError] = useState<string | null>(null);
@@ -356,8 +75,81 @@ export default function RoadmapPage() {
   const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
   const [showResults, setShowResults] = useState(false);
   const [activeVideoToWatch, setActiveVideoToWatch] = useState<RecommendedVideo | null>(null);
+  type NodeProgress = {
+    nodeId: string;
+    score: number;
+    total: number;
+    passed: boolean;
+  };
+  const [progressList, setProgressList] = useState<NodeProgress[]>([]);
+  const [mlPrediction, setMlPrediction] = useState<{ label: string; confidence: number } | null>(null);
+  const [mlLoading, setMlLoading] = useState(false);
+
   const { data: session } = useSession();
   const router = useRouter();
+
+  useEffect(() => {
+    let loaded = false;
+    const saved = sessionStorage.getItem(`roadmapState-${pathway || "full-stack"}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.nodeId) {
+          const node = roadmapData.find(n => n.id === parsed.nodeId);
+          if (node) {
+            setSelectedNode(node);
+            setQuiz(parsed.quiz || null);
+            setShowResults(parsed.showResults || false);
+            setUserAnswers(parsed.userAnswers || {});
+            setMlPrediction(parsed.mlPrediction || null);
+            setSelectedVideo(parsed.selectedVideo || null);
+            setActiveVideoToWatch(parsed.activeVideoToWatch || null);
+            loaded = true;
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (!loaded) {
+      setSelectedNode(null);
+      setVideos([]);
+      setNextPageToken(null);
+      setQuiz(null);
+      setSelectedVideo(null);
+      setShowResults(false);
+      setUserAnswers({});
+      setActiveVideoToWatch(null);
+    }
+
+    const fetchProgress = async () => {
+      try {
+        const res = await fetch(`/api/roadmap/progress?pathway=${pathway || "full-stack"}`);
+        if (res.ok) {
+          const data = await res.json();
+          setProgressList(data.progress || []);
+        }
+      } catch (e) {
+        console.error("Failed to load progress:", e);
+      }
+    };
+    if (session?.user) {
+      fetchProgress();
+    }
+  }, [pathway, session, roadmapData]);
+
+  useEffect(() => {
+    if (selectedNode) {
+      sessionStorage.setItem(`roadmapState-${pathway || "full-stack"}`, JSON.stringify({
+        nodeId: selectedNode.id,
+        quiz,
+        showResults,
+        userAnswers,
+        mlPrediction,
+        selectedVideo,
+        activeVideoToWatch
+      }));
+    }
+  }, [selectedNode, quiz, showResults, userAnswers, mlPrediction, selectedVideo, activeVideoToWatch, pathway]);
 
   const fetchVideos = async (
     topic: string,
@@ -506,20 +298,44 @@ export default function RoadmapPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-10">
-      <h1 className="text-4xl font-bold text-center mb-14">
-        Full Stack Developer Learning Journey
+      <h1 className="text-4xl font-bold text-center mb-6">
+        {title}
       </h1>
+
+      <div className="flex justify-center gap-4 mb-14">
+        <Link 
+          href="/dashboard"
+          className="text-sm font-semibold text-[#1e6188] bg-white px-6 py-2 rounded-full shadow-sm border border-gray-200 hover:bg-gray-50 transition flex items-center gap-2"
+        >
+          ← Return to Dashboard
+        </Link>
+        <Link 
+          href={domainSelectionUrl}
+          className="text-sm font-semibold text-[#1e6188] bg-white px-6 py-2 rounded-full shadow-sm border border-gray-200 hover:bg-gray-50 transition flex items-center gap-2"
+        >
+          ← Back to Domain Selection
+        </Link>
+      </div>
 
       <div className="flex gap-14 max-w-7xl mx-auto">
         {/* LEFT – JOURNEY */}
-        <div className="relative w-1/4">
-          <div className="absolute left-6 top-0 h-full w-[2px] bg-gray-300" />
-
-          {roadmapData.map((node, index) => {
+        <div className="relative w-1/4">          {roadmapData.map((node, index) => {
             const isActive = selectedNode?.id === node.id;
+            const nodeProg = progressList.find(p => p.nodeId === node.id);
+            const isCompleted = !!nodeProg; // Any attempt turns it blue
+            const scoreDisplay = nodeProg ? `${nodeProg.score}/${nodeProg.total}` : '';
 
             return (
               <div key={node.id} className="relative flex items-start mb-14">
+                {/* DYNAMIC LINE SEGMENT TO NEXT NODE */}
+                {index < roadmapData.length - 1 && (
+                  <div
+                    className={`absolute left-6 top-12 w-[2px] h-[3.5rem] -ml-[1px] transition-colors duration-500 z-0 ${
+                      isCompleted ? "bg-blue-500" : "bg-gray-300"
+                    }`}
+                  />
+                )}
+
                 {/* DOT */}
                 <div
                   onClick={() => handleSelectNode(node)}
@@ -527,24 +343,31 @@ export default function RoadmapPage() {
                     ${
                       isActive
                         ? "bg-blue-600 text-white shadow-lg scale-105"
+                        : isCompleted
+                        ? "bg-blue-500 text-white shadow border-2 border-blue-500"
                         : "bg-white border-2 border-gray-300 text-gray-600 hover:border-blue-400"
                     }
                   `}
                 >
-                  {index + 1}
+                  {isCompleted && !isActive ? "✓" : index + 1}
                 </div>
 
                 {/* LABEL */}
                 <div className="ml-5">
                   <p
                     className={`text-lg font-semibold ${
-                      isActive ? "text-blue-600" : "text-gray-700"
+                      isActive ? "text-blue-600" : isCompleted ? "text-blue-600" : "text-gray-700"
                     }`}
                   >
                     {node.title}
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-500 flex items-center gap-2 mt-1">
                     Step {index + 1}
+                    {nodeProg && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${nodeProg.passed ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                        Best: {scoreDisplay}
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -616,12 +439,48 @@ export default function RoadmapPage() {
 
                   {!showResults && (
                     <button
-                      onClick={() => {
+                      onClick={async () => {
                         setShowResults(true);
+                        const _score = calculateScore();
+                        const _weakTopics = getWeakTopics();
+                        const total = quiz.questions.length;
+                        const passed = _score >= Math.ceil(total * 0.7);
+
+                        // Save progress to database
+                        if (session?.user && selectedNode) {
+                          try {
+                            const res = await fetch("/api/roadmap/progress", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                pathway: pathway || "full-stack",
+                                nodeId: selectedNode.id,
+                                score: _score,
+                                total: total,
+                                passed: passed
+                              })
+                            });
+                            if (res.ok) {
+                              const data = await res.json();
+                              // Update local state if the score was updated (or it's new)
+                              setProgressList(prev => {
+                                const newProgress = data.progress;
+                                const index = prev.findIndex(p => p.nodeId === newProgress.nodeId);
+                                if (index >= 0) {
+                                  const updated = [...prev];
+                                  updated[index] = newProgress;
+                                  return updated;
+                                }
+                                return [...prev, newProgress];
+                              });
+                            }
+                          } catch (e) {
+                            console.error("Failed to save progress", e);
+                          }
+                        }
+
                         // Trigger email automatically
                         if (session?.user?.email) {
-                          const _score = calculateScore();
-                          const _weakTopics = getWeakTopics();
                           fetch("/api/send-email", {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
@@ -630,10 +489,58 @@ export default function RoadmapPage() {
                               name: session.user.name || "Student",
                               type: "test_report",
                               score: _score,
-                              total: quiz.questions.length,
+                              total: total,
                               weakTopics: _weakTopics
                             })
                           }).catch(err => console.error("Email API Error:", err));
+                        }
+
+                        // ML Skill-Gap Prediction
+                        setMlLoading(true);
+                        try {
+                          const nodeProg = progressList.find(p => p.nodeId === selectedNode?.id);
+                          const retryCount = nodeProg ? 1 : 0; // first attempt = 0 retries
+                          const firstAttemptScore = nodeProg ? nodeProg.score : _score;
+                          const accuracy = total > 0 ? parseFloat((_score / total).toFixed(2)) : 0;
+                          // Approximate time: use a reasonable placeholder (seconds)
+                          const timeTaken = Math.max(30, Math.round(total * 12 - _score * 5));
+
+                          const mlRes = await fetch("/api/predict", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              score: _score,
+                              accuracy,
+                              retry_count: retryCount,
+                              time_taken: timeTaken,
+                              first_attempt_score: firstAttemptScore
+                            })
+                          });
+                          if (mlRes.ok) {
+                            const mlData = await mlRes.json();
+                            setMlPrediction(mlData);
+
+                            // Save to database for admin CSV export
+                            fetch("/api/skill-gap-records", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                pathway: pathway || "full-stack",
+                                nodeId: selectedNode?.id,
+                                score: _score,
+                                accuracy,
+                                retry_count: retryCount,
+                                time_taken: timeTaken,
+                                first_attempt_score: firstAttemptScore,
+                                mlLabel: mlData.label,
+                                mlConfidence: mlData.confidence,
+                              })
+                            }).catch(err => console.error("Skill gap record save error:", err));
+                          }
+                        } catch (e) {
+                          console.error("ML prediction failed:", e);
+                        } finally {
+                          setMlLoading(false);
                         }
                       }}
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition mt-6"
@@ -656,6 +563,58 @@ export default function RoadmapPage() {
                           : "📚 Keep studying and try again!"}
                       </p>
 
+                      {/* ML Skill-Level Prediction Card */}
+                      {mlLoading && (
+                        <div className="mb-6 p-4 bg-indigo-50 border border-indigo-200 rounded-lg text-indigo-700 flex items-center gap-3">
+                          <svg className="animate-spin h-5 w-5 text-indigo-600" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                          Analyzing your performance with ML model...
+                        </div>
+                      )}
+                      {mlPrediction && !mlLoading && (
+                        <div className={`mb-6 p-5 rounded-xl border-2 shadow-sm ${
+                          mlPrediction.label === 'Strong'   ? 'bg-emerald-50 border-emerald-300' :
+                          mlPrediction.label === 'Moderate' ? 'bg-blue-50 border-blue-300' :
+                          mlPrediction.label === 'Weak'     ? 'bg-amber-50 border-amber-300' :
+                                                              'bg-red-50 border-red-300'
+                        }`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-bold text-lg flex items-center gap-2">
+                              🤖 ML Skill-Level Prediction
+                            </h4>
+                            <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                              mlPrediction.label === 'Strong'   ? 'bg-emerald-200 text-emerald-800' :
+                              mlPrediction.label === 'Moderate' ? 'bg-blue-200 text-blue-800' :
+                              mlPrediction.label === 'Weak'     ? 'bg-amber-200 text-amber-800' :
+                                                                  'bg-red-200 text-red-800'
+                            }`}>
+                              {mlPrediction.label.toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4">
+                            <div className="flex-1">
+                              <div className="w-full bg-gray-200 rounded-full h-3">
+                                <div
+                                  className={`h-3 rounded-full transition-all duration-700 ${
+                                    mlPrediction.label === 'Strong'   ? 'bg-emerald-500' :
+                                    mlPrediction.label === 'Moderate' ? 'bg-blue-500' :
+                                    mlPrediction.label === 'Weak'     ? 'bg-amber-500' :
+                                                                        'bg-red-500'
+                                  }`}
+                                  style={{ width: `${mlPrediction.confidence}%` }}
+                                />
+                              </div>
+                            </div>
+                            <span className="text-sm font-bold text-gray-700">{mlPrediction.confidence}%</span>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-2">
+                            {mlPrediction.label === 'Strong'   ? 'Excellent grasp — you\'re ready to move forward!' :
+                             mlPrediction.label === 'Moderate' ? 'Decent understanding — a quick review will solidify it.' :
+                             mlPrediction.label === 'Weak'     ? 'Needs improvement — focus on the weak topics below.' :
+                                                                 'Critical gaps found — revisit the fundamentals before continuing.'}
+                          </p>
+                        </div>
+                      )}
+
                       {weakTopics.length > 0 && (
                         <div className="mt-4 mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800">
                           <h4 className="font-bold mb-2">⚠️ Skill Gaps Detected</h4>
@@ -665,6 +624,54 @@ export default function RoadmapPage() {
                               <li key={topic}>{topic}</li>
                             ))}
                           </ul>
+                        </div>
+                      )}
+
+                      {/* ── Resource Recommendation Cards (added safely) ── */}
+                      {weakTopics.length > 0 && (
+                        <div className="mt-2 mb-6">
+                          <h4 className="font-bold text-lg text-blue-800 mb-3">📚 Recommended Learning Resources</h4>
+                          <p className="text-sm text-gray-600 mb-4">Click on any link below to learn and improve your weak areas:</p>
+                          
+                          {weakTopics.map(topic => {
+                            // Generate Google search URLs scoped to trusted educational sites
+                            const sites = [
+                              { name: 'GeeksForGeeks', domain: 'geeksforgeeks.org', icon: '📗', color: 'bg-green-50 border-green-200 hover:bg-green-100' },
+                              { name: 'Programiz', domain: 'programiz.com', icon: '📘', color: 'bg-blue-50 border-blue-200 hover:bg-blue-100' },
+                              { name: 'TutorialsPoint', domain: 'tutorialspoint.com', icon: '📙', color: 'bg-orange-50 border-orange-200 hover:bg-orange-100' },
+                              { name: 'W3Schools', domain: 'w3schools.com', icon: '📕', color: 'bg-red-50 border-red-200 hover:bg-red-100' },
+                              { name: 'Google Search', domain: '', icon: '🔍', color: 'bg-purple-50 border-purple-200 hover:bg-purple-100' },
+                            ];
+
+                            return (
+                              <div key={topic} className="mb-5 bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                                <h5 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                                  <span className="bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded text-xs font-bold">WEAK</span>
+                                  {topic}
+                                </h5>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {sites.map(site => {
+                                    const url = site.domain
+                                      ? `https://www.google.com/search?q=${encodeURIComponent(topic + ' tutorial site:' + site.domain)}`
+                                      : `https://www.google.com/search?q=${encodeURIComponent(topic + ' tutorial learn')}`;
+                                    return (
+                                      <a
+                                        key={site.name}
+                                        href={url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={`flex items-center gap-2 p-3 rounded-lg border text-sm font-medium transition-all duration-200 ${site.color}`}
+                                      >
+                                        <span className="text-lg">{site.icon}</span>
+                                        <span className="text-gray-700">{topic} — {site.name}</span>
+                                        <span className="ml-auto text-blue-500 text-xs">→</span>
+                                      </a>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       )}
 
@@ -681,10 +688,19 @@ export default function RoadmapPage() {
                           </button>
                         )}
                         <button
-                          onClick={() => router.push("/career-insights")}
+                          onClick={() => router.push(domainSelectionUrl)}
                           className="flex-1 bg-gray-800 hover:bg-gray-900 text-white font-semibold py-3 px-4 rounded-lg transition text-center"
                         >
                           Explore Pathways
+                        </button>
+                        <button
+                          onClick={() => {
+                            const currentIdx = roadmapData.findIndex(n => n.id === selectedNode.id) + 1;
+                            router.push(`/jobs?pathway=${pathway || 'full-stack'}&progress=${currentIdx}&total=${roadmapData.length}`);
+                          }}
+                          className="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold py-3 px-4 rounded-lg transition text-center"
+                        >
+                          🎯 View Job Recommendations
                         </button>
                       </div>
                     </div>
@@ -798,5 +814,17 @@ export default function RoadmapPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RoadmapPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <p className="text-xl font-semibold text-gray-600 animate-pulse">Loading Roadmap...</p>
+      </div>
+    }>
+      <RoadmapContent />
+    </Suspense>
   );
 }

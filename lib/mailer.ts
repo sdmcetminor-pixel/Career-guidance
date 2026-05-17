@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer';
 
+// Gmail SMTP via App Password (spaces must be removed from the 16-char app password)
 export const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -9,22 +10,25 @@ export const transporter = nodemailer.createTransport({
 });
 
 export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-    console.error('Nodemailer Error: Missing GMAIL_USER or GMAIL_APP_PASSWORD in environment variables.');
-    return { success: false, error: 'Missing environment variables' };
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
+
+  if (!user || !pass) {
+    console.error('Mailer Error: GMAIL_USER or GMAIL_APP_PASSWORD is not set in .env');
+    return { success: false, error: 'Missing email credentials' };
   }
-  
+
   try {
     const info = await transporter.sendMail({
-      from: `"Career App" <${process.env.GMAIL_USER}>`,
+      from: `"Career Guidance App" <${user}>`,
       to,
       subject,
       html,
     });
-    console.log('Email sent successfully: ' + info.messageId);
+    console.log('Email sent successfully:', info.messageId, '→', to);
     return { success: true, messageId: info.messageId };
-  } catch (error) {
-    console.error('Error sending email via Nodemailer:', error);
-    return { success: false, error };
+  } catch (error: any) {
+    console.error('Error sending email via Nodemailer:', error?.message || error);
+    return { success: false, error: error?.message || error };
   }
 }

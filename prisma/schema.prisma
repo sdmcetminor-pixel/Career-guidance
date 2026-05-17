@@ -22,6 +22,8 @@ model User {
   assessments     Assessment[]
   recommendations Recommendation[]
   savedCareers    SavedCareer[]
+  roadmapProgress RoadmapProgress[]
+  skillGapRecords SkillGapRecord[]
 
   @@map("users")
 }
@@ -172,4 +174,48 @@ model SavedCareer {
 
   @@unique([userId, careerId])
   @@map("saved_careers")
+}
+
+/////////////////////////////////////////////////
+// ROADMAP PROGRESS
+/////////////////////////////////////////////////
+model RoadmapProgress {
+  id        String   @id @default(cuid())
+  userId    String
+  pathway   String   // e.g. "full-stack"
+  nodeId    String   // e.g. "html", "react"
+  score     Int      // highest score achieved
+  total     Int      // total questions in quiz
+  passed    Boolean  // if they passed the quiz (>= 70%)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pathway, nodeId])
+  @@map("roadmap_progress")
+}
+
+/////////////////////////////////////////////////
+// SKILL GAP RECORDS (ML PREDICTIONS)
+/////////////////////////////////////////////////
+model SkillGapRecord {
+  id                String   @id @default(cuid())
+  userId            String
+  userName          String?
+  userEmail         String?
+  pathway           String?
+  nodeId            String?
+  score             Int
+  accuracy          Float
+  retryCount        Int
+  timeTaken         Int
+  firstAttemptScore Int
+  mlLabel           String   // Strong | Moderate | Weak | Critical
+  mlConfidence      Float
+  createdAt         DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("skill_gap_records")
 }
