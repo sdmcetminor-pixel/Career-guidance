@@ -1,6 +1,5 @@
 // Prisma Client Singleton
-// Prevents multiple instances in development
-// Enhanced with connection error handling
+// Prevents multiple instances in development AND production (Vercel serverless)
 
 import { PrismaClient } from '@prisma/client'
 
@@ -16,16 +15,7 @@ export const prisma =
     errorFormat: 'pretty',
   })
 
-// Handle connection errors gracefully
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma
-  
-  // Test connection on startup
-  prisma.$connect().catch((error) => {
-    console.error('❌ Database connection error:', error.message)
-    console.log('💡 Make sure DATABASE_URL is set in .env file')
-    console.log('💡 For SQLite, use: DATABASE_URL="file:./dev.db"')
-    console.log('💡 For PostgreSQL, use: DATABASE_URL="postgresql://user:password@localhost:5432/dbname"')
-  })
-}
+// Cache the client globally to prevent multiple instances
+// This is safe in all environments — on serverless, globalThis is reset per cold start anyway
+globalForPrisma.prisma = prisma
 

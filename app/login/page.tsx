@@ -45,6 +45,7 @@ export default function LoginPage() {
           <div className="relative">
             {/* Hero Image / Illustration */}
             <div className="w-full aspect-[4/3] rounded-xl overflow-hidden shadow-2xl bg-white/40 backdrop-blur-sm p-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img 
                 alt="Professional growth illustration" 
                 className="w-full h-full object-cover rounded-lg" 

@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import YouTube from "react-youtube";
-import { Video, RoadmapNode, fullStackRoadmapData, frontendRoadmapData, backendRoadmapData, devopsRoadmapData, dataEngineerRoadmapData, machineLearningRoadmapData, aiEngineerRoadmapData, cybersecurityRoadmapData } from "./data";
+import { Video, RoadmapNode, fullStackRoadmapData, frontendRoadmapData, backendRoadmapData, devopsRoadmapData, dataEngineerRoadmapData, machineLearningRoadmapData, aiEngineerRoadmapData, cybersecurityRoadmapData, pathwayCertifications } from "./data";
 
 type QuizQuestion = {
   question: string;
@@ -63,6 +63,7 @@ function RoadmapContent() {
     domainSelectionUrl = "/dashboard/technical-group/data-pathways";
   }
 
+  const [activeTab, setActiveTab] = useState<'interactive' | 'certifications'>('interactive');
   const [selectedNode, setSelectedNode] = useState<RoadmapNode | null>(null);
   const [videos, setVideos] = useState<RecommendedVideo[]>([]);
   const [videosError, setVideosError] = useState<string | null>(null);
@@ -317,7 +318,34 @@ function RoadmapContent() {
         </Link>
       </div>
 
-      <div className="flex gap-14 max-w-7xl mx-auto">
+      {/* TAB NAVIGATION */}
+      <div className="flex justify-center mb-10">
+        <div className="bg-white p-1 rounded-full border border-gray-200 shadow-sm inline-flex">
+          <button
+            onClick={() => setActiveTab('interactive')}
+            className={`px-6 py-2.5 rounded-full text-sm font-bold transition duration-200 ${
+              activeTab === 'interactive'
+                ? 'bg-[#1e6188] text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-50 hover:text-[#1e6188]'
+            }`}
+          >
+            🎥 Interactive Learning
+          </button>
+          <button
+            onClick={() => setActiveTab('certifications')}
+            className={`px-6 py-2.5 rounded-full text-sm font-bold transition duration-200 ${
+              activeTab === 'certifications'
+                ? 'bg-[#1e6188] text-white shadow-md'
+                : 'text-gray-600 hover:bg-gray-50 hover:text-[#1e6188]'
+            }`}
+          >
+            🎓 Industry Certifications & Programs
+          </button>
+        </div>
+      </div>
+
+      {activeTab === 'interactive' ? (
+        <div className="flex gap-14 max-w-7xl mx-auto">
         {/* LEFT – JOURNEY */}
         <div className="relative w-1/4">          {roadmapData.map((node, index) => {
             const isActive = selectedNode?.id === node.id;
@@ -813,6 +841,104 @@ function RoadmapContent() {
           )}
         </div>
       </div>
+      ) : (
+        <div className="max-w-7xl mx-auto pb-12">
+          <div className="bg-white rounded-2xl shadow-xl p-8 mb-8 border border-gray-100">
+            <h2 className="text-3xl font-bold text-gray-800 mb-3">Professional Industry Certifications</h2>
+            <p className="text-gray-600 mb-8 text-lg">Take your career to the next level with these fully guided, professional certification programs from top tech companies. These programs are perfect to complete alongside or after your interactive learning roadmap.</p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {(pathwayCertifications[pathway || 'full-stack'] || pathwayCertifications['full-stack']).map((cert, idx) => (
+                <a 
+                  key={idx}
+                  href={cert.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group flex flex-col bg-white border border-gray-200 rounded-2xl overflow-hidden hover:shadow-2xl transition-all duration-300 hover:border-[#1e6188] transform hover:-translate-y-2 relative"
+                >
+                  {/* Badges */}
+                  <div className="absolute top-4 right-4 flex gap-2 z-10">
+                    <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider ${cert.price === 'Free' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                      {cert.price}
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider bg-purple-100 text-purple-700">
+                      {cert.type}
+                    </span>
+                  </div>
+
+                  <div className="p-6 flex-1 flex flex-col pt-12">
+                    <div className="flex items-start gap-4 mb-4">
+                      {cert.image && (
+                        <div className="w-14 h-14 flex-shrink-0 bg-white rounded-xl p-2 border shadow-sm flex items-center justify-center">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={cert.image} alt={cert.provider} className="max-w-full max-h-full object-contain" />
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-xs font-bold tracking-wider text-[#1e6188] uppercase mb-1">{cert.provider}</p>
+                        <h3 className="font-bold text-gray-900 group-hover:text-[#1e6188] transition leading-snug text-lg">{cert.title}</h3>
+                      </div>
+                    </div>
+                    
+                    <p className="text-sm text-gray-600 mb-6 flex-1 leading-relaxed">{cert.description}</p>
+                    
+                    <div className="mt-auto pt-4 border-t border-gray-100 flex items-center justify-between">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500">
+                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                          {cert.duration}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500">
+                           <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                           {cert.difficulty}
+                        </div>
+                      </div>
+                      <span className="text-sm font-bold text-[#1e6188] group-hover:translate-x-1 transition-transform inline-flex items-center gap-1 bg-[#1e6188]/5 px-3 py-1.5 rounded-lg group-hover:bg-[#1e6188]/10">
+                        View Program <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+                      </span>
+                    </div>
+                  </div>
+                </a>
+              ))}
+            </div>
+            
+            {!(pathwayCertifications[pathway || 'full-stack'] || pathwayCertifications['full-stack'])?.length && (
+              <div className="text-center py-10 bg-gray-50 rounded-xl border border-gray-200 mt-6">
+                <p className="text-gray-500 font-medium">More certifications coming soon for this pathway!</p>
+              </div>
+            )}
+          </div>
+
+          {/* Explore More section */}
+          <div className="bg-gradient-to-br from-[#1e6188] to-[#154663] rounded-2xl shadow-xl p-8 text-white flex flex-col md:flex-row items-center justify-between gap-6">
+             <div>
+               <h3 className="text-2xl font-bold mb-2">Want to explore more options?</h3>
+               <p className="text-blue-100 max-w-xl">
+                 While we curated the best programs above, you can always search for specific {pathway ? pathway.replace('-', ' ') : 'full stack'} courses on the world&apos;s top learning platforms.
+               </p>
+             </div>
+             <div className="flex flex-wrap gap-3 shrink-0">
+               <a 
+                 href={`https://www.coursera.org/search?query=${pathway ? pathway.replace('-', '%20') : 'full%20stack'}`}
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 className="bg-white text-[#1e6188] font-bold py-2.5 px-5 rounded-lg hover:bg-blue-50 transition shadow-sm flex items-center gap-2"
+               >
+                 Search Coursera
+               </a>
+               <a 
+                 href={`https://www.udemy.com/courses/search/?q=${pathway ? pathway.replace('-', '+') : 'full+stack'}`}
+                 target="_blank"
+                 rel="noopener noreferrer"
+                 className="bg-transparent border border-white/30 text-white font-bold py-2.5 px-5 rounded-lg hover:bg-white/10 transition flex items-center gap-2"
+               >
+                 Search Udemy
+               </a>
+             </div>
+          </div>
+
+        </div>
+      )}
     </div>
   );
 }

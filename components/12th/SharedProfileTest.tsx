@@ -169,7 +169,7 @@ const SharedProfileTest: FC<SharedProps> = ({ title, headerColorClass = 'bg-indi
     } finally {
       setIsLoading(false)
     }
-  }, [answers, clusterWeights, stream, QUIZ_DURATION_SECONDS, secondsLeft])
+  }, [answers, clusterWeights, stream, QUIZ_DURATION_SECONDS, secondsLeft, shuffledQuestions])
 
   useEffect(() => {
     // Start countdown timer when the quiz interface is active and not submitted

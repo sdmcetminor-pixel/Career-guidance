@@ -11,8 +11,12 @@
 
 'use client'
 
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useState } from 'react'
 import type { MatchResult } from '@/lib/skill-matcher'
+import type { TrustAnalysis } from '@/lib/trust-analyzer'
+import JobTrustBadge from './JobTrustBadge'
+import { generatePreparationGuidance } from '@/lib/preparation-analyzer'
 
 type Job = {
   id: string
@@ -24,6 +28,7 @@ type Job = {
   requiredSkills: string[]
   datePosted: string
   description: string
+  trustAnalysis?: TrustAnalysis
 }
 
 type Props = {
@@ -58,9 +63,25 @@ function formatEmploymentType(type: string): string {
 }
 
 export default function JobCard({ job, match, index, isSelected, onSelect }: Props) {
+  const [isPrepOpen, setIsPrepOpen] = useState(false)
   const scoreColor = getScoreColor(match.score)
   const circumference = 2 * Math.PI * 36 // radius 36
   const offset = circumference - (match.score / 100) * circumference
+  const prepGuidance = generatePreparationGuidance(job.title, job.company, match.missingSkills)
+
+  let platform = job.trustAnalysis?.platform;
+  if (!platform) {
+    const urlLower = (job.applyUrl || '').toLowerCase();
+    if (urlLower.includes('linkedin.com')) platform = 'LinkedIn';
+    else if (urlLower.includes('internshala.com')) platform = 'Internshala';
+    else if (urlLower.includes('naukri.com')) platform = 'Naukri';
+    else if (urlLower.includes('indeed.com')) platform = 'Indeed';
+    else if (urlLower.includes('glassdoor.com')) platform = 'Glassdoor';
+    else if (urlLower.includes('wellfound.com') || urlLower.includes('angel.co')) platform = 'Wellfound';
+    else if (urlLower.includes('hirist.com')) platform = 'Hirist';
+    else if (urlLower.includes('foundit.in') || urlLower.includes('monster.com')) platform = 'Foundit';
+    else platform = 'Unknown Web Source';
+  }
 
   return (
     <motion.div
@@ -109,6 +130,16 @@ export default function JobCard({ job, match, index, isSelected, onSelect }: Pro
               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-surface-container-high text-on-surface-variant">
                 {formatEmploymentType(job.employmentType)}
               </span>
+              {job.trustAnalysis && (
+                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${
+                  (job.trustAnalysis.isFake ?? (job.trustAnalysis.level === 'Suspicious'))
+                    ? 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20' 
+                    : 'bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20'
+                }`}>
+                  {(job.trustAnalysis.isFake ?? (job.trustAnalysis.level === 'Suspicious')) ? '🚨 Fake/Scam Job' : '✅ Real Job'} 
+                  {' '}from {platform}
+                </span>
+              )}
             </div>
           </div>
 
@@ -176,6 +207,107 @@ export default function JobCard({ job, match, index, isSelected, onSelect }: Pro
         <p className="text-sm mt-4 text-on-surface-variant italic">
           &ldquo;{match.feedback}&rdquo;
         </p>
+
+        {/* Trust Badge */}
+        {job.trustAnalysis && (
+          <JobTrustBadge trust={job.trustAnalysis} />
+        )}
+
+        {/* Preparation Guidance Accordion */}
+        <div className="mt-4 border border-outline-variant/30 rounded-xl overflow-hidden bg-surface-container-lowest">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsPrepOpen(!isPrepOpen);
+            }}
+            className="w-full flex items-center justify-between p-3 text-sm font-bold text-on-surface hover:bg-surface-container-low transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-lg">🎯</span>
+              Preparation Guidance
+            </div>
+            <motion.div animate={{ rotate: isPrepOpen ? 180 : 0 }}>▼</motion.div>
+          </button>
+          
+          <AnimatePresence>
+            {isPrepOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="px-4 pb-4 text-sm border-t border-outline-variant/20 bg-surface-container-lowest/50 cursor-default"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="pt-3 space-y-4">
+                  {/* Skill Warnings */}
+                  {prepGuidance.skillWarnings.length > 0 && (
+                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                      <p className="font-bold text-red-700 dark:text-red-400 text-xs uppercase tracking-wider mb-2 flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        Weak Areas to Improve
+                      </p>
+                      <ul className="list-disc list-inside text-xs text-red-600 dark:text-red-300 space-y-1">
+                        {prepGuidance.skillWarnings.map((warning, i) => (
+                          <li key={i}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Company Insights */}
+                  {prepGuidance.companyInsights && (
+                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+                      <p className="font-bold text-blue-700 dark:text-blue-400 text-xs uppercase tracking-wider mb-2 flex items-center gap-1">
+                        🏢 {job.company} Focus Areas
+                      </p>
+                      <ul className="list-disc list-inside text-xs text-blue-600 dark:text-blue-300 space-y-1">
+                        {prepGuidance.companyInsights.focusAreas.map((area, i) => (
+                          <li key={i}>{area}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Preparation Rounds */}
+                  <div className="space-y-3">
+                    {prepGuidance.rounds.map((round, idx) => (
+                      <div key={idx}>
+                        <p className="font-bold text-on-surface text-xs mb-1.5 flex items-center gap-1.5">
+                          <span>{round.icon}</span> {round.name}
+                        </p>
+                        <ul className="text-xs text-on-surface-variant space-y-1.5 ml-1">
+                          {round.topics.map((topic, i) => (
+                            <li key={i} className="flex items-center justify-between">
+                              <span className="flex items-center gap-1.5">
+                                <span className="w-1 h-1 rounded-full bg-outline-variant/60"></span>
+                                {topic.name}
+                              </span>
+                              {topic.url && topic.action && (
+                                <a 
+                                  href={topic.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-primary/10 text-primary hover:bg-primary/20 transition-colors shrink-0 ml-2 border border-primary/10"
+                                >
+                                  [{topic.action}]
+                                </a>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+
+                  <p className="text-[10px] text-on-surface-variant/60 italic text-center border-t border-outline-variant/20 pt-3 mt-4">
+                    * Commonly expected preparation areas for similar roles.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* Apply button */}
         <a
